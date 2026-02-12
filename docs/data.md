@@ -123,7 +123,7 @@ There is a fixed price per energy carrier, route type and distance.
 # Buildings 
 Heating and cooling are modeled endogenously as end-use demand. This dataset includes the final demands and the technologies that provide the demand.
 
-## Demands:
+## Demands
 * Non-residential space heating
 * Residential space heating
 * Non-residential domestic hot water
@@ -131,7 +131,7 @@ Heating and cooling are modeled endogenously as end-use demand. This dataset inc
 * Non-residential cooling 
 * Residential cooling
 
-## Technologies:
+## Technologies
 * Air heatpumps
 * Ground heatpumps
 * Biomass boilers
@@ -158,7 +158,7 @@ This dataset includes different sectors: steel, cement, glass, fertilisers, chem
 
 There are in total around 80 investable routes. Each route is modeled in a multi-input multi-output framework.
 
-## Parameters:
+## Parameters
 * Demand (constant, flat profile), scenarios: current trend and high expectation
 * Investment, fixed and operational cost for 2030, 2040 and 2050 (EUR 2025)
 * Conversion rates
