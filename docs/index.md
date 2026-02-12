@@ -1,3 +1,7 @@
+---
+title: Home
+nav_order: 1
+---
 
 # Welcome to My Project Documentation
 
@@ -11,5 +15,3 @@ Use the links below to navigate through the different sections:
 Learn how to install and begin using the project.
 
 👉 [Getting Started](getting-started.md)
-
----
