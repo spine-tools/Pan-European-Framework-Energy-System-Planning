@@ -3,3 +3,597 @@ title: Set Up Your Framework
 nav_order: 3
 ---
 
+# Model Configuration Guide
+
+This guide explains how to configure your energy system model using the `userconfig.yaml` file. This configuration file allows you to customize model behavior, select technologies, define constraints, and specify which sectors to include in your analysis.
+
+## Overview
+
+The `userconfig.yaml` file is structured into several main sections that control different aspects of the model:
+
+- **Pipelines**: Enable/disable major model components
+- **Model Settings**: Define model type, temporal resolution, and planning years
+- **Timeline**: Set historical periods and clustering options
+- **Global Constraints**: Configure CO₂ budgets and renewable targets
+- **Countries**: Specify geographical scope and wind zones
+- **Commodities**: Define energy carriers and their properties
+- **Transmission**: Configure transmission networks
+- **Cargo**: Enable cargo transport for commodities
+- **Storage**: Select storage technologies and investment options
+- **Technologies**: Configure power generation, conversion, and end-use technologies
+- **End-use**: Define heating and cooling demand sectors
+- **Vehicles**: Select transport vehicle types
+
+---
+
+## 1. Pipelines
+
+Control which major sectors and systems are included in the model.
+
+```yaml
+pipelines:
+  power: True
+  vre: True
+  hydro: True
+  biomass: True
+  electricity_transmission: True
+  residual_demand: True
+  gas: True
+  gas_pipelines: True
+  industry: True
+  heat: True
+  transport: True
+  cargo: True
+```
+
+**Usage**: Set to `True` to include the pipeline in your model, or `False` to exclude it.
+
+**Key Pipelines**:
+- `power`: Power generation sector
+- `vre`: Variable renewable energy (solar and wind)
+- `industry`: Industrial sector modeling
+- `heat`: Heat demand and supply
+- `transport`: Transportation sector
+- `cargo`: Cargo/freight transport
+
+---
+
+## 2. Model Settings
+
+Define the fundamental model characteristics and planning horizons.
+
+```yaml
+model:
+    type: brownfield  # greenfied not included yet
+    operations_resolution: "1h"
+    planning_resolution: "365D"
+    planning_years:
+      "2030": ["2030-01-01T00:00:00", 10.0]
+      "2040": ["2041-01-01T00:00:00", 10.0]
+      "2050": ["2050-01-01T00:00:00", 10.0]
+```
+
+**Parameters**:
+- `type`: Model approach
+  - `brownfield`: Includes existing infrastructure (recommended)
+  - `greenfield`: Build from scratch (not yet implemented)
+- `operations_resolution`: Time step for operational decisions (e.g., "1h", "3h")
+- `planning_resolution`: Planning period length (e.g., "365D" for annual)
+- `planning_years`: Dictionary of target years with:
+  - Start date in ISO format
+  - Investment period weight (typically 10.0)
+
+**Available Planning Years**: 2030, 2040, 2050
+
+---
+
+## 3. Timeline Configuration
+
+Set historical reference years and temporal clustering options.
+
+```yaml
+timeline:
+  historical_alt:
+    CY_1995:
+      start: "1995-01-01T00:00:00"
+      end: "1995-12-31T23:00:00"
+    CY_2008:
+      start: "2008-01-01T00:00:00"
+      end: "2008-12-31T23:00:00"
+    CY_2009:
+      start: "2009-01-01T00:00:00"
+      end: "2009-12-31T23:00:00"
+```
+
+**Historical Periods**: Define reference years for weather and demand patterns
+
+---
+
+## 4. Global Constraints
+
+Set system-wide CO₂ limits and renewable energy targets.
+
+```yaml
+global_constraints:
+  co2_annual_budget:
+    "2030": 2200000000  # European level (tonnes CO₂)
+    "2040": 550000000   # European level
+    "2050": 0.0         # Net-zero target
+  co2_annual_sequestration: 200000000  # European level (tonnes CO₂)
+```
+
+**Parameters**:
+- `co2_annual_budget`: Maximum annual CO₂ emissions (tonnes) for each planning year
+- `co2_annual_sequestration`: Maximum annual CO₂ that can be sequestered (tonnes)
+
+---
+
+## 5. Countries and Wind Zones
+
+Define geographical scope and onshore/offshore wind characteristics.
+
+```yaml
+countries:
+  Europe:
+    onshore: "PECD1"
+    offshore: "OFF2"
+  ES:
+    onshore: "PECD1"
+    offshore: "OFF2"
+```
+
+**Usage**:
+- Use `Europe` as a country code to model all of Europe with default settings
+- Add specific country codes (e.g., `ES` for Spain, `DE` for Germany) to customize individual countries
+- Wind zone codes (`PECD1`, `OFF2`, etc.) determine the wind resource characteristics
+
+**Available Country Codes**:
+```
+AL, DE, HU, MK, SE, AT, DK, IE, MT, SI, BA, EE, IT, NL, SK, BE, ES, 
+LT, NO, TR, BG, FI, LU, PL, UA, CH, FR, LV, PT, UK, CY, GR, MD, RO, 
+XK, CZ, HR, ME, RS
+```
+
+---
+
+## 6. Commodities (Energy Carriers)
+
+Define which energy carriers are modeled and their properties.
+
+```yaml
+commodity:
+  elec:
+    status: True           # Model this commodity
+    node_type: balance     # Requires supply-demand balance
+  CH4:
+    status: True
+    node_type: balance
+  H2:
+    status: True
+    node_type: balance
+  CO2:
+    status: False
+    node_type: storage     # Storage node, defined per country
+  fossil-CH4:
+    status: False
+    node_type: commodity   # No balance equation required
+```
+
+**Node Types**:
+- `balance`: Supply must equal demand at each node (per country)
+- `storage`: Commodity can be stored (defined per country)
+- `commodity`: Simple commodity node without balance constraint
+
+**Common Commodities**:
+- `elec`: Electricity
+- `CH4`: Methane/natural gas
+- `H2`: Hydrogen
+- `CO2`: Carbon dioxide
+- `bio`: Biomass
+- `HC`: Hydrocarbons
+- `MeOH`: Methanol
+- `fossil-CH4`, `fossil-HC`: Fossil fuel sources
+- `crude`, `coal`, `U-92`: Primary energy sources
+- `waste`: Waste materials
+
+**Set `status: True`** to include the commodity in your model.
+
+---
+
+## 7. Transmission Networks
+
+Enable transmission networks between countries for different commodities.
+
+```yaml
+transmission:
+  elec:
+    status: True  # Model electricity transmission
+  CH4:
+    status: True
+  H2:
+    status: True
+  CO2:
+    status: False
+```
+
+**Usage**: Set `status: True` to allow cross-border transmission of that commodity.
+
+---
+
+## 8. Cargo Transport
+
+Enable cargo/freight transport for specific commodities.
+
+```yaml
+cargo:
+  MeOH:
+    status: True  # Allow methanol cargo transport
+  HC:
+    status: True
+  bio:
+    status: True
+```
+
+**Usage**: Set `status: True` to model cargo transport options for that commodity.
+
+---
+
+## 9. Storage Technologies
+
+Configure available storage technologies and their investment constraints.
+
+```yaml
+storage:
+  large-battery:
+    status: True
+    investment_method: "no_limits"  # No restrictions on investment
+  CH4-geo-formation:
+    status: True
+    investment_method: "not_allowed"  # Use existing only
+  H2-tank:
+    status: False
+    investment_method: "no_limits"
+  salt-cavern:
+    status: True
+    investment_method: "cumulative_limits"  # Limited total capacity
+  CO2-geo-formation:
+    status: False
+    investment_method: "cumulative_limits"
+```
+
+**Investment Methods**:
+- `not_allowed`: Only existing capacity can be used (no new investments)
+- `no_limits`: Unlimited investment allowed
+- `cumulative_limits`: Total investment is constrained by resource availability
+
+**Available Storage Types**:
+- `large-battery`: Large-scale battery storage
+- `CH4-geo-formation`: Underground methane storage
+- `H2-tank`: Hydrogen tanks
+- `salt-cavern`: Salt cavern storage (typically for hydrogen)
+- `CO2-geo-formation`: Geological CO₂ storage
+- `liquids-bunker`: Liquid fuel storage
+- `LT-hot-water-tank`: Low-temperature hot water storage
+- `heat-storage`: Heat storage systems
+
+---
+
+## 10. Technologies
+
+Configure individual technologies with detailed settings. Technologies are organized by sector.
+
+### Technology Configuration Structure
+
+Each technology has four main properties:
+
+```yaml
+technology:
+  CCGT:
+    rename: "CCGT"                    # Display name
+    status: True                      # Include in model
+    investment_method: "no_limits"    # Investment constraint
+    renewable: False                  # Renewable classification
+```
+
+### Investment Methods
+
+- `not_allowed`: Existing units only (typically used with `-existing` suffix)
+- `no_limits`: Unrestricted new investments
+- `cumulative_limits`: Limited by resource constraints
+
+### Power Generation Technologies
+
+**Fossil Fuel Plants**:
+
+```yaml
+  CCGT:
+    rename: "CCGT"
+    status: False
+    investment_method: "no_limits"
+    renewable: False
+  CCGT-existing:
+    rename: "CCGT-existing"
+    status: True
+    investment_method: "not_allowed"
+    renewable: False
+  CCGT+CC:
+    rename: "CCGT+CC"
+    status: True
+    investment_method: "no_limits"
+    renewable: False
+```
+
+- `SCPC`: Supercritical Pulverized Coal
+- `OCGT`: Open Cycle Gas Turbine
+- `CCGT`: Combined Cycle Gas Turbine
+- `+CC` suffix: Includes carbon capture
+
+**Nuclear**:
+
+```yaml
+  nuclear-3:
+    rename: "nuclear-3"
+    status: True
+    investment_method: "no_limits"
+    renewable: False
+```
+
+**Biomass & Waste**:
+
+```yaml
+  bioST:
+    rename: "bioST"
+    status: True
+    investment_method: "no_limits"
+    renewable: True
+  wasteST-existing:
+    rename: "wasteST-existing"
+    status: True
+    investment_method: "not_allowed"
+    renewable: False
+```
+
+### Renewable Energy Technologies
+
+**Wind Power**:
+
+```yaml
+  wind-on-SP199-HH100:
+    rename: "wind-on-SP199-HH100"
+    status: True
+    investment_method: "no_limits"
+    renewable: True
+  wind-off-FB-SP370-HH155:
+    rename: "wind-off-FB-SP370-HH155"
+    status: True
+    investment_method: "no_limits"
+    renewable: True
+```
+
+Wind technology naming convention: `wind-[on/off]-[type]-SP[rotor]-HH[height]`
+- `on`: Onshore, `off`: Offshore
+- `FB`: Fixed-bottom, `FO`: Floating offshore
+- `SP###`: Specific power (W/m²)
+- `HH###`: Hub height (m)
+
+**Solar Power**:
+
+```yaml
+  solar-PV-no-tracking:
+    rename: "solar-PV"
+    status: True
+    investment_method: "no_limits"
+    renewable: True
+  solar-PV-rooftop:
+    rename: "solar-PV-rooftop"
+    status: False
+    investment_method: "no_limits"
+    renewable: True
+  solar-CSP:
+    rename: "solar-CSP"
+    status: False
+    investment_method: "no_limits"
+    renewable: True
+```
+
+**Hydropower**:
+
+```yaml
+  hydro-turbine:
+    rename: "hydro-turbine"
+    status: True
+    investment_method: "not_allowed"
+    renewable: True
+```
+
+### Hydrogen Production
+
+```yaml
+  SMR:
+    status: True
+    investment_method: "no_limits"
+  SMR+CC:
+    status: True
+    investment_method: "no_limits"
+  PEM:
+    status: True
+    investment_method: "no_limits"
+  AEC:
+    status: False
+    investment_method: "no_limits"
+```
+
+- `SMR`: Steam Methane Reforming
+- `SMR+CC`: SMR with carbon capture
+- `PEM`: Proton Exchange Membrane electrolyzer
+- `AEC`: Alkaline Electrolyzer
+
+### Heat Technologies
+
+**Residential & Commercial Heating**:
+
+```yaml
+  air-heatpump:
+    status: True
+    investment_method: "no_limits"
+  ground-heatpump:
+    status: True
+    investment_method: "no_limits"
+  gas-boiler:
+    status: True
+    investment_method: "no_limits"
+  oil-boiler:
+    status: True
+    investment_method: "no_limits"
+  bio-boiler:
+    status: True
+    investment_method: "no_limits"
+  electric-heating:
+    status: True
+    investment_method: "no_limits"
+```
+
+### Industrial Technologies
+
+Industrial routes use a special naming convention:
+
+```yaml
+  (H2)DRI-EAF:
+    status: true
+  (NG)DRI-EAF:
+    status: true
+  (NG)DRI-EAF-MEA:
+    status: true
+  BF-BOF:
+    status: true
+  BF-BOF-MEA:
+    status: true
+```
+
+**Naming Convention**: `(Input)Process-Technology` or `(Input)Process-Technology-CarbonCapture`
+
+**Common Prefixes**:
+- `(H2)`: Hydrogen-based
+- `(NG)`: Natural gas-based
+- `(EL)`: Electricity-based
+- `(BM)`: Biomass-based
+- `(COEL)`: CO₂ + electricity-based
+
+**Common Suffixes**:
+- `-MEA`: With MEA carbon capture
+- `-CC`: With carbon capture
+- `-DC`: Direct conversion
+
+**Examples**:
+- `(H2)DRI-EAF`: Hydrogen-based Direct Reduced Iron - Electric Arc Furnace (steel)
+- `(NG)NH3`: Natural gas-based ammonia production
+- `(H2)FT-DC`: Hydrogen-based Fischer-Tropsch synthesis
+- `CEM2-(Coal)`: Coal-based cement production (Type II)
+
+---
+
+## 11. End-Use Demand
+
+Configure which heat and cooling demands are modeled.
+
+```yaml
+end-use:
+  nonres-cool:
+    status: True
+  res-cool:
+    status: True
+  nonres-space:
+    status: True
+  res-space:
+    status: True
+  nonres-DHW:
+    status: True
+  res-DHW:
+    status: True
+  DH-space:
+    status: False
+  DH-DHW:
+    status: False
+```
+
+**Demand Categories**:
+- `res-`: Residential sector
+- `nonres-`: Non-residential (commercial, services)
+- `DH-`: District heating
+- `-space`: Space heating
+- `-cool`: Cooling
+- `-DHW`: Domestic hot water
+
+---
+
+## 12. Vehicle Technologies
+
+Select which vehicle types and fuel technologies to include in the transport sector.
+
+```yaml
+vehicle:
+  car:
+    status: True
+  car-diesel:
+    status: True
+  car-gasoline:
+    status: True
+  car-DR:
+    status: True  # Direct electric
+  car-H2:
+    status: True
+  car-CNG:
+    status: True
+  van:
+    status: True
+  van-diesel:
+    status: True
+  truck:
+    status: True
+  bus:
+    status: True
+  aviation:
+    status: True
+  int-aviation:
+    status: True  # International aviation
+  maritime:
+    status: True
+  int-maritime:
+    status: True  # International maritime
+  rail:
+    status: True
+  thermal-rail:
+    status: True
+```
+
+**Vehicle Categories**:
+- `car`, `van`, `truck`, `bus`: Road transport
+- `aviation`, `int-aviation`: Air transport (domestic and international)
+- `maritime`, `int-maritime`: Sea transport (domestic and international)
+- `rail`, `thermal-rail`: Rail transport
+
+**Fuel Types** (suffixes for road vehicles):
+- `-diesel`: Diesel fuel
+- `-gasoline`: Gasoline/petrol
+- `-DR`: Direct electric (battery electric)
+- `-H2`: Hydrogen fuel cell
+- `-CNG`: Compressed natural gas
+- `-LNG`: Liquefied natural gas
+- `-LPG`: Liquefied petroleum gas
+
+---
+
+## Validation Checklist
+
+Before running your model, verify:
+
+- [ ] At least one pipeline is enabled
+- [ ] Required commodities for enabled pipelines have `status: True`
+- [ ] At least one technology is enabled in each active sector
+- [ ] CO₂ budgets are realistic for your scenario
+- [ ] Planning years are properly configured
+- [ ] Country codes are valid
+- [ ] Investment methods align with your scenario goals
+
+# WARNINGS
+1. Current functionality only models the specified regions in a self-supply manner. It only accounts from non-EU imports those countries that have that connection, e.g., Italy has gas imports from North Africa.

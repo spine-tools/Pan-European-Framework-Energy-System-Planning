@@ -27,7 +27,7 @@ This pipeline counts with a set of different technologies:
 * Solar PV: rooftop, no tracking axis and one tracking axis.
 
 # Parameters
-* Capacity factors (42 weather years)
+* Capacity factors: weather years 1980-2021
 * Existing capacity and expected decommissions
 * Installable capacity per technology type and region: solar, onshore wind and offshore wind.
 * Investment cost, fixed cost and operational cost for 2030, 2040 and 2050 (EUR 2025)
@@ -195,5 +195,4 @@ For electric road transport, the profiles are hourly and flexibility is allowed 
 # Residual Electricity Demand
 
 ## Parameters
-* Demand profiles (42 weather years)
-* Files
+* Demand profiles: weather years 1982-2021
