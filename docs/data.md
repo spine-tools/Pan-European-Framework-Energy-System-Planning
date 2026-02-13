@@ -13,7 +13,7 @@ This framework contains information about the following sectors in Europe:
 * Cargo transport, biomass, hydrocarbon liquids and methanol
 * Industry, chemicals, glass, fertilisers, refineries, cement and steel
 * Buildings, non-residential and residential, heating and cooling
-* Transport, road, train, aviation and shipping
+* Transport, road, rail, aviation and shipping
 * Residual electricity demand
 
 # Spatial Scope
@@ -175,9 +175,11 @@ Transport demand covers road, train, aviation and shipping.
 * Bus
 * Truck
 
-## Train
+## Non-road transport
 * Electric trains
 * Combustion trains
+* Planes
+* Ships
 
 ## Parameters
 For electric road transport, the profiles are hourly and flexibility is allowed through scenarios, 10% or 20% of the vehicles have G2V and V2G services, considering this fleet as virtual storage connected to the grid. The remaining vehicles have weekly profiles

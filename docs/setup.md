@@ -12,10 +12,10 @@ This guide explains how to configure your energy system model using the `usercon
 The `userconfig.yaml` file is structured into several main sections that control different aspects of the model:
 
 - **Pipelines**: Enable/disable major model components
+- **Countries**: Specify geographical scope and wind zones
 - **Model Settings**: Define model type, temporal resolution, and planning years
 - **Timeline**: Set historical periods and clustering options
 - **Global Constraints**: Configure CO₂ budgets and renewable targets
-- **Countries**: Specify geographical scope and wind zones
 - **Commodities**: Define energy carriers and their properties
 - **Transmission**: Configure transmission networks
 - **Cargo**: Enable cargo transport for commodities
@@ -58,7 +58,64 @@ pipelines:
 
 ---
 
-## 2. Model Settings
+## 2. Countries and Wind Zones
+
+Define geographical scope and onshore/offshore wind characteristics.
+
+```yaml
+countries:
+  Europe:
+    onshore: "PECD1"
+    offshore: "OFF2"
+  ES:
+    onshore: "PECD1"
+    offshore: "OFF2"
+```
+
+**Usage**:
+- Use `Europe` as a country code to model all of Europe with default settings
+- Add specific country codes (e.g., `ES` for Spain, `DE` for Germany) to customize individual countries
+- Wind zone codes (`PECD1`, `OFF2`, etc.) determine the wind resource characteristics
+
+**Available Country Codes**:
+```
+  countries = [
+        "AT",  # Austria
+        "BE",  # Belgium
+        "BG",  # Bulgaria
+        "HR",  # Croatia
+        "CY",  # Cyprus
+        "CZ",  # Czech Republic
+        "DK",  # Denmark
+        "EE",  # Estonia
+        "FI",  # Finland
+        "FR",  # France
+        "DE",  # Germany
+        "GR",  # Greece
+        "HU",  # Hungary
+        "IE",  # Ireland
+        "IT",  # Italy
+        "LV",  # Latvia
+        "LT",  # Lithuania
+        "LU",  # Luxembourg
+        "MT",  # Malta
+        "NL",  # Netherlands
+        "PL",  # Poland
+        "PT",  # Portugal
+        "RO",  # Romania
+        "SK",  # Slovakia
+        "SI",  # Slovenia
+        "ES",  # Spain
+        "SE",  # Sweden
+        "CH",  # Switzerland
+        "UK",  # United Kingdom
+        "NO"   # Norway
+    ]
+```
+
+---
+
+## 3. Model Settings
 
 Define the fundamental model characteristics and planning horizons.
 
@@ -87,7 +144,7 @@ model:
 
 ---
 
-## 3. Timeline Configuration
+## 4. Timeline Configuration
 
 Set historical reference years and temporal clustering options.
 
@@ -96,20 +153,17 @@ timeline:
   historical_alt:
     CY_1995:
       start: "1995-01-01T00:00:00"
-      end: "1995-12-31T23:00:00"
     CY_2008:
       start: "2008-01-01T00:00:00"
-      end: "2008-12-31T23:00:00"
     CY_2009:
       start: "2009-01-01T00:00:00"
-      end: "2009-12-31T23:00:00"
 ```
 
 **Historical Periods**: Define reference years for weather and demand patterns
 
 ---
 
-## 4. Global Constraints
+## 5. Global Constraints
 
 Set system-wide CO₂ limits and renewable energy targets.
 
@@ -125,34 +179,6 @@ global_constraints:
 **Parameters**:
 - `co2_annual_budget`: Maximum annual CO₂ emissions (tonnes) for each planning year
 - `co2_annual_sequestration`: Maximum annual CO₂ that can be sequestered (tonnes)
-
----
-
-## 5. Countries and Wind Zones
-
-Define geographical scope and onshore/offshore wind characteristics.
-
-```yaml
-countries:
-  Europe:
-    onshore: "PECD1"
-    offshore: "OFF2"
-  ES:
-    onshore: "PECD1"
-    offshore: "OFF2"
-```
-
-**Usage**:
-- Use `Europe` as a country code to model all of Europe with default settings
-- Add specific country codes (e.g., `ES` for Spain, `DE` for Germany) to customize individual countries
-- Wind zone codes (`PECD1`, `OFF2`, etc.) determine the wind resource characteristics
-
-**Available Country Codes**:
-```
-AL, DE, HU, MK, SE, AT, DK, IE, MT, SI, BA, EE, IT, NL, SK, BE, ES, 
-LT, NO, TR, BG, FI, LU, PL, UA, CH, FR, LV, PT, UK, CY, GR, MD, RO, 
-XK, CZ, HR, ME, RS
-```
 
 ---
 
@@ -181,7 +207,7 @@ commodity:
 
 **Node Types**:
 - `balance`: Supply must equal demand at each node (per country)
-- `storage`: Commodity can be stored (defined per country)
+- `storage`: Commodity can be stored
 - `commodity`: Simple commodity node without balance constraint
 
 **Common Commodities**:
@@ -213,7 +239,7 @@ transmission:
   H2:
     status: True
   CO2:
-    status: False
+    status: False # not available yet
 ```
 
 **Usage**: Set `status: True` to allow cross-border transmission of that commodity.
@@ -269,12 +295,7 @@ storage:
 **Available Storage Types**:
 - `large-battery`: Large-scale battery storage
 - `CH4-geo-formation`: Underground methane storage
-- `H2-tank`: Hydrogen tanks
 - `salt-cavern`: Salt cavern storage (typically for hydrogen)
-- `CO2-geo-formation`: Geological CO₂ storage
-- `liquids-bunker`: Liquid fuel storage
-- `LT-hot-water-tank`: Low-temperature hot water storage
-- `heat-storage`: Heat storage systems
 
 ---
 
@@ -289,10 +310,8 @@ Each technology has four main properties:
 ```yaml
 technology:
   CCGT:
-    rename: "CCGT"                    # Display name
     status: True                      # Include in model
     investment_method: "no_limits"    # Investment constraint
-    renewable: False                  # Renewable classification
 ```
 
 ### Investment Methods
@@ -307,20 +326,14 @@ technology:
 
 ```yaml
   CCGT:
-    rename: "CCGT"
     status: False
     investment_method: "no_limits"
-    renewable: False
   CCGT-existing:
-    rename: "CCGT-existing"
     status: True
     investment_method: "not_allowed"
-    renewable: False
   CCGT+CC:
-    rename: "CCGT+CC"
     status: True
     investment_method: "no_limits"
-    renewable: False
 ```
 
 - `SCPC`: Supercritical Pulverized Coal
@@ -332,25 +345,19 @@ technology:
 
 ```yaml
   nuclear-3:
-    rename: "nuclear-3"
     status: True
     investment_method: "no_limits"
-    renewable: False
 ```
 
 **Biomass & Waste**:
 
 ```yaml
   bioST:
-    rename: "bioST"
     status: True
     investment_method: "no_limits"
-    renewable: True
   wasteST-existing:
-    rename: "wasteST-existing"
     status: True
     investment_method: "not_allowed"
-    renewable: False
 ```
 
 ### Renewable Energy Technologies
@@ -359,15 +366,11 @@ technology:
 
 ```yaml
   wind-on-SP199-HH100:
-    rename: "wind-on-SP199-HH100"
     status: True
     investment_method: "no_limits"
-    renewable: True
   wind-off-FB-SP370-HH155:
-    rename: "wind-off-FB-SP370-HH155"
     status: True
     investment_method: "no_limits"
-    renewable: True
 ```
 
 Wind technology naming convention: `wind-[on/off]-[type]-SP[rotor]-HH[height]`
@@ -380,30 +383,22 @@ Wind technology naming convention: `wind-[on/off]-[type]-SP[rotor]-HH[height]`
 
 ```yaml
   solar-PV-no-tracking:
-    rename: "solar-PV"
     status: True
     investment_method: "no_limits"
-    renewable: True
   solar-PV-rooftop:
-    rename: "solar-PV-rooftop"
     status: False
     investment_method: "no_limits"
-    renewable: True
   solar-CSP:
-    rename: "solar-CSP"
     status: False
     investment_method: "no_limits"
-    renewable: True
 ```
 
 **Hydropower**:
 
 ```yaml
   hydro-turbine:
-    rename: "hydro-turbine"
     status: True
     investment_method: "not_allowed"
-    renewable: True
 ```
 
 ### Hydrogen Production
@@ -597,3 +592,6 @@ Before running your model, verify:
 
 # WARNINGS
 1. Current functionality only models the specified regions in a self-supply manner. It only accounts from non-EU imports those countries that have that connection, e.g., Italy has gas imports from North Africa.
+2. No all the technologies and options are introduced here, explore the file to check the whole catalogue.
+3. Spatial resolution applies to all sectors. Future development will include models with sectors at different spatial resolution.
+4. The configuration files allows to model countries at different spatial resolution however, the networks can be handled at one. So if the user chooses countries with different resolutions, then the networks will not be included and countries will be disconnected.
