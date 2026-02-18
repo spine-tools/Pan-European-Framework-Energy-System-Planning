@@ -78,6 +78,7 @@ countries:
 - Wind zone codes (`PECD1`, `OFF2`, etc.) determine the wind resource characteristics
 
 **Available Country Codes**:
+
 ```
   countries = [
         "AT",  # Austria
