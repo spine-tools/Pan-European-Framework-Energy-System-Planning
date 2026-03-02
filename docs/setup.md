@@ -103,7 +103,7 @@ pipelines:
 Some sector like power and industry could be imported at different resolutions. Network resolution are fixed and the user must run the corresponding data pipeline with the desirable resolution (currently cross-border), that is, source resolution is always equal to target resolution.
 
 
-## 2. Countries and Wind Zones
+## 2. Countries
 
 Define geographical scope and onshore/offshore wind characteristics.
 
