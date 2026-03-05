@@ -276,13 +276,6 @@ Transport demand covers road, rail, aviation and shipping.
 * Annual demand scale aligned with ENTSO-E’s Distributed Energy and Global Ambition scenarios from the 10-year network development plan (TYNDP) 2024, where the units are the number of vehicles per megawatt. 
 * Flexibility parameters: connected share, available capacity, departure energy, charge/discharge power, and efficiencies by charger type. 
 
-## Flexibility parameters
-* Vehicles connected to the grid
-* Available capacity connected to the grid
-* Energy leaving the grid (vehicle disconnection)
-* Discharging and charging power available
-* Discharging and charging efficiency based on connected chargers
-
 ## Resolution
 * __Data resolution__: PECD1
 * To PECD2/NUTS2/NUTS3, fleet and annual demand scaled based on population; normalized country-level time series replicated to sub-regions. 
