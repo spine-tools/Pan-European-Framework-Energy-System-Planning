@@ -19,14 +19,13 @@ This guide explains how to configure your energy system model using the `usercon
 
 The `userconfig.yaml` file is structured into several main sections that control different aspects of the model:
 
-- **Pipelines**: Enable/disable major model components
-- **Countries**: Specify geographical scope and wind zones
+- **Pipelines**: Enable/disable major model components and their corresponding resolution
+- **Countries**: Specify geographical scope
 - **Model Settings**: Define model type, temporal resolution, and planning years
-- **Timeline**: Set historical periods and clustering options
-- **Global Constraints**: Configure CO₂ budgets and renewable targets
+- **Timeline**: Set historical periods
+- **Global Constraints**: Configure CO₂ budgets
 - **Commodities**: Define energy carriers and their properties
-- **Transmission**: Configure transmission networks
-- **Cargo**: Enable cargo transport for commodities
+- **Netowrk**: Configure transmission networks
 - **Storage**: Select storage technologies and investment options
 - **Technologies**: Configure power generation, conversion, and end-use technologies
 - **End-use**: Define heating and cooling demand sectors
