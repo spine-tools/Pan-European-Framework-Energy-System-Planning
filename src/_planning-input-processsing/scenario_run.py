@@ -81,26 +81,36 @@ def scenario_development(config):
         except:
             print("###################################################################### commit error")  
 
-def storage_setup():
+def storage_setup(config):
 
-    shortterm_storages = ["large-battery","car-DR","bus-DR","van-DR","truck-DR"]
     with DatabaseMapping(url_spineopt) as sopt_db:
         list_rep = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "representative_period" in entity_i["name"]]
         list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]                    
     
         for param_map in sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "has_state"):
             if bool(param_map["parsed_value"]):
-                if all(sto not in param_map["entity_byname"][0] for sto in shortterm_storages):
+                if all(sto+"_" not in param_map["entity_byname"][0] for sto in config["short-term-storage"]):
                     add_or_update_parameter_value(sopt_db,"node","is_longterm_storage","Base",(param_map["entity_byname"][0],),True)
-                    cylic_contition_status = [entity_i for entity_i in sopt_db.get_parameter_value_items(entity_class_name = "node__temporal_block", alternative_name = "Base", parameter_definition_name = "cyclic_condition") if param_map["entity_byname"][0] == entity_i["entity_byname"][0]]
-                    if cylic_contition_status and sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps"):
+                    cyclic_condition_status = [entity_i for entity_i in sopt_db.get_parameter_value_items(entity_class_name = "node__temporal_block", alternative_name = "Base", parameter_definition_name = "cyclic_condition") if param_map["entity_byname"][0] == entity_i["entity_byname"][0]]
+                    if cyclic_condition_status and sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps"):
                         try:
                             add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],"all_rps"))
                         except:
                             print(f"Entity class node__temporal_block with all_rps already added")
                             pass
+                    elif any(sto+"_" in param_map["entity_byname"][0] for sto in config["long-term-storage"]):
+                        add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],"all_rps"))
+                        for tb in list_otb:
+                            add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],tb))
+                            add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(param_map["entity_byname"][0],tb),True)
+
                 else:
                     if list_rep:
+                        # identifying long-term cyclic condition
+                        for node_map in sopt_db.get_entity_items(entity_class_name = "node__temporal_block"):
+                            if node_map["entity_byname"][0] == param_map["entity_byname"][0]:
+                                item_id = node_map["id"]
+                                sopt_db.remove_item("entity",item_id)
                         for rep in list_rep:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],rep))
@@ -149,7 +159,7 @@ def main():
     scenario_development(config)
 
     print("storage_setup")
-    storage_setup()
+    storage_setup(config)
 
     print("updating_parameters")
     update_parameters(config)

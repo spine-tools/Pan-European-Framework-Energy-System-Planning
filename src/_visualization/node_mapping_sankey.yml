@@ -1,3 +1,5 @@
+alumina: industry
+aluminium-primary: industry
 steel-primary: industry
 steel-secondary: industry
 MeOH: methanol
@@ -5,11 +7,22 @@ glass-float: industry
 glass-fibre: industry
 glass-container: industry
 fertiliser-ammonia-NH3: industry
+food-beverages-tobacco: industry
 chemical-PE: industry
 chemical-PEA: industry
 chemical-olefins: industry
 cement: industry
-large-battery: electricity
+chemical-chlorine: industry
+leather-and-textile: industry
+machinery-equipment: industry
+other-non-ferrous-metals: industry
+pharmaceuticals: industry
+printing-and-media: industry
+pulp: industry
+paper: industry
+transport-equipment: industry
+wood-and-wood-products: industry
+battery-storage: electricity
 elec: electricity
 residual-elec: residual-electricity
 H2: hydrogen
@@ -30,6 +43,7 @@ heat: buildings
 cool: buildings
 hydro: hydro
 reservoir: hydro
+PH-reservoir: hydro
 car: transport
 car-diesel: transport
 car-gasoline: transport

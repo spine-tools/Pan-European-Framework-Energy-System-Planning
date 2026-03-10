@@ -2,3 +2,6 @@ scenarios:
   baseline_blended_representative_periods: ["Base","wy2009","y2030_wy2009","y2040_wy2009","y2050_wy2009","medium_bio","current","GA","GA_flex0"]
 emission_factor: 30.0
 resolution: "1h"
+# configurable cyclic condition, storage options: battery-storage-iron-air,batter-storage,truck-DR,bus-DR,van-DR,car-DR
+long-term-storage: [battery-storage-iron-air]
+short-term-storage: [battery-storage,PH-reservoir,truck-DR,bus-DR,van-DR,car-DR]

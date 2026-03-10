@@ -85,7 +85,7 @@ def ouput_data():
                 add_or_update_parameter_value(sopt_db,"temporal_block","block_end",alternative_name,entity_name,{"type":"date_time","data":block_end})
 
             map_rp = {"type":"map","index_type":"date_time","index_name":"t","data":[((time_index[24*(i-1)]).isoformat(),{"type":"array","data":[weights.at[i,j]*(year == year_i) for year_i in ["2030","2040","2050"] for j in weights.columns],"value_type": "float",}) for i in weights.index]}
-            print(map_rp)
+            #print(map_rp)
             add_or_update_parameter_value(sopt_db,"temporal_block","representative_periods_mapping",alternative_name,(f"operations_y{year}",),map_rp)
     try:
         sopt_db.commit_session("Added representative periods")

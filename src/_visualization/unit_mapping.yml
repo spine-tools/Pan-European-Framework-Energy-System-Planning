@@ -10,7 +10,8 @@ wasteST: Waste Steam Turbine
 oil-eng: Diesel Group
 hydro-turbine: Hydro Turbine
 RoR: Run-of-River
-large-battery: Battery Charger
+PH-discharge: Hydro Turbine
+battery-storage: Battery Charger
 # heat
 oil-boiler: Diesel Boiler
 bio-boiler: Biomass Boiler

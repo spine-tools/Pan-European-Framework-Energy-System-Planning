@@ -1,3 +1,5 @@
+alumina: aluminium
+aluminium-primary: aluminium
 steel-primary: steel
 steel-secondary: steel
 MeOH: methanol
@@ -5,11 +7,22 @@ glass-float: glass
 glass-fibre: glass
 glass-container: glass
 fertiliser-ammonia-NH3: ammonia
+food-beverages-tobacco: food-beverages-tobacco
 chemical-PE: chemicals
 chemical-PEA: chemicals
 chemical-olefins: chemicals
+chemical-chlorine: chemicals
 cement: cement
-large-battery: electricity
+leather-and-textile: leather-and-textile
+machinery-equipment: machinery-equipment
+other-non-ferrous-metals: other-non-ferrous-metals
+pharmaceuticals: pharmaceuticals
+printing-and-media: printing-and-media
+pulp: pulp
+paper: paper
+transport-equipment: transport-equipment
+wood-and-wood-products: wood
+battery-storage: electricity
 elec: electricity
 residual-elec: residual-electricity
 H2: hydrogen
@@ -29,6 +42,7 @@ heat: buildings heat
 cool: buildings
 hydro: hydro
 reservoir: hydro
+PH-reservoir: hydro
 car: transport
 car-diesel: transport
 car-gasoline: transport

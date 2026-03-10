@@ -108,9 +108,8 @@ def investment_cost_update():
                     print("FOM cost not found for ", parameter_map["entity_name"])
                 else:
                     fom_cost_condition = True
-                    fom_cost = fom_dict["parsed_value"]
                     # print("new value for the fom cost", (fom_cost.values[0] if fom_dict["type"]=="time_series" else fom_cost))
-                    add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_cost.values[2] if fom_dict["type"]=="time_series" else fom_cost))
+                    add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_dict["parsed_value"].values[2] if fom_dict["type"]=="time_series" else fom_dict["parsed_value"]))
 
                 
                 dates = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
@@ -121,8 +120,15 @@ def investment_cost_update():
                     new_value   = {"type":"time_series","data":dict(zip(dates,new_values))}
                 else:
                     annual_cost = parameter_map["parsed_value"].values * annuity_factor
-                    new_values = [(annual_cost[0] + ((fom_cost.values[0] - fom_cost.values[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[0]),(annual_cost[1] + ((fom_cost.values[1] - fom_cost.values[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[1]),annual_cost[2]*min(lifetime,year_dur[2]),annual_cost[2]*min(lifetime,year_dur[2])]
-                    new_value = {"type":parameter_map["type"], "data": dict(zip(dates,new_values))}   
+                    #breakpoint()
+                    if fom_cost_condition:
+                        if fom_dict["type"] == "float":
+                            fixed_cost = [fom_dict["parsed_value"],fom_dict["parsed_value"],fom_dict["parsed_value"]]
+                        else:
+                            fixed_cost = [fom_dict["parsed_value"].values[0],fom_dict["parsed_value"].values[1],fom_dict["parsed_value"].values[2]]
+
+                    new_values = [(annual_cost[0] + ((fixed_cost[0] - fixed_cost[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[0]),(annual_cost[1] + ((fixed_cost[1] - fixed_cost[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[1]),annual_cost[2]*min(lifetime,year_dur[2]),annual_cost[2]*min(lifetime,year_dur[2])]
+                    new_value = {"type":"time_series", "data": dict(zip(dates,new_values))}   
                 
                 # print("new value for the value cost", parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
                 add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
@@ -158,7 +164,7 @@ def manage_output():
         add_entity(sopt_db,"model__report",("capacity_planning",report_name))
         outputs = ["unit_capacity","connection_capacity","node_state_cap","demand",
                    "connections_invested","connections_invested_available","connections_decommissioned","units_invested","units_invested_available","units_mothballed",
-                   "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","node_injection","weight","fractional_demand",
+                   "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","longterm_node_state","node_injection","weight","fractional_demand",
                    "unit_investment_cost","connection_investment_cost","storage_investment_cost",
                    "unit_investment_costs","connection_investment_costs","storage_investment_costs","fixed_om_costs","variable_om_costs","fuel_costs","connection_flow_costs","taxes","objective_penalties",
                    "node_slack_neg","node_slack_pos",
