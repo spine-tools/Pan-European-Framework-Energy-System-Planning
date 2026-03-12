@@ -77,6 +77,7 @@ def load_storage_dict(path: str):
 def load_all_data():
     installed = load_csv("files_out/installed_capacity.csv")
     invested = load_csv("files_out/invested_capacity.csv")
+    invested_cost = load_csv("files_out/invested_cost.csv")
     decommissioned = load_csv("files_out/decommissioned_capacity.csv")
     unit_to_flows = load_csv("files_out/unit_to_flows.csv")
     energy_flows = load_csv("files_out/energy_flows.csv")
@@ -84,7 +85,7 @@ def load_all_data():
     emissions_flows = load_csv("files_out/emissions_flows.csv")
     storage_dict = load_storage_dict("files_out/node_state.dill")
     
-    return (installed, invested, decommissioned, unit_to_flows, 
+    return (installed, invested, invested_cost, decommissioned, unit_to_flows, 
             energy_flows, crossborder_flows, emissions_flows, storage_dict)
 
 # ----------------------
@@ -98,16 +99,17 @@ def melt_df(df: pd.DataFrame, value_name: str, id_vars) -> pd.DataFrame:
 # CACHED: Preprocess data
 # ----------------------
 @st.cache_data
-def preprocess_data(installed, invested, decommissioned, unit_to_flows, id_vars):
+def preprocess_data(installed, invested, invested_cost, decommissioned, unit_to_flows, id_vars):
     installed_m = melt_df(installed, "Installed", id_vars)
     invested_m = melt_df(invested, "Invested", id_vars)
+    invested_cost_m = melt_df(invested_cost, "Invested_Cost", id_vars)
     decom_m = melt_df(decommissioned, "Decommissioned", id_vars)
     unit_flows_m = melt_df(unit_to_flows, "UnitFlows", id_vars)
 
     # Merge all
     merged = installed_m.merge(invested_m, on=id_vars + ["year"], how="outer").merge(
         decom_m, on=id_vars + ["year"], how="outer"
-    ).merge(unit_flows_m, on=id_vars + ["year"], how="outer")
+    ).merge(invested_cost_m, on=id_vars + ["year"], how="outer").merge(unit_flows_m, on=id_vars + ["year"], how="outer")
 
     # Extract numeric year and clean
     merged["year"] = merged["year"].str.extract(r"(\d+)")
@@ -122,6 +124,7 @@ def preprocess_data(installed, invested, decommissioned, unit_to_flows, id_vars)
     # Convertir de MW a GW
     merged["Installed"] = merged["Installed"] / 1000
     merged["Invested"] = merged["Invested"] / 1000
+    merged["Invested_Cost"] = merged["Invested_Cost"] / 1e9
     merged["Decommissioned"] = merged["Decommissioned"] / 1000
     merged["UnitFlows"] = merged["UnitFlows"] / 1e6
 
@@ -285,12 +288,13 @@ def main():
     ID_VARS = ["unit_name", "node", "scenario", "polygon", "technology"]
 
     # CACHED: Load all data once
-    (installed, invested, decommissioned, unit_to_flows, 
+    (installed, invested, invested_cost, decommissioned, unit_to_flows, 
      energy_flows, crossborder_flows, emissions_flows, storage_dict) = load_all_data()
 
     # CACHED: Preprocess data once
-    merged = preprocess_data(installed, invested, decommissioned, unit_to_flows, ID_VARS)
+    merged = preprocess_data(installed, invested, invested_cost, decommissioned, unit_to_flows, ID_VARS)
 
+    # breakpoint()
     # Extract metadata
     scenarios = sorted(merged["scenario"].dropna().unique())
     countries = sorted(merged["polygon"].dropna().unique())
@@ -308,10 +312,11 @@ def main():
     st.header("European Model Statistics")
     scenario = st.selectbox("Scenario", scenarios)
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📊 Installed Capacity", 
         "🔄 Energy Production", 
         "📈 Invested vs Decommissioned",
+        "💰 CAPEX",
         "🗺️ Capacity Map",
         "🔋 Storage Analysis",
         "🌊 Sankey Diagrams",
@@ -464,15 +469,53 @@ def main():
             st.plotly_chart(fig_change, width="stretch")
             download_plot(fig_change, "investment_decommission")
 
-
-    # ----------------------------
-    # Plot: Installed Capacity Map
-    # ----------------------------
-
+        # ----------------------
+    # Plot 4: Invesment Cost
+    # ----------------------
     with tab4:
+        st.header("Investment Cost")
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_countries = st.multiselect("Countries", countries, default=countries, key="investment_cost_countries")
+        with col2:
+            selected_node = st.selectbox("Node", nodes, key="investment_cost_nodes")
+        filtered = merged[(merged["scenario"] == scenario) & (merged["node"] == selected_node) & (merged["polygon"].isin(selected_countries))].copy()
+        if filtered.empty:
+            st.info("No data for the selected filters.")
+        else:
+            df = filtered.rename(columns={"Invested_Cost": "Investment Cost (B€)"}).copy()
+            df["year"] = df["year"].astype(int)
+
+            # Technologies present (based on positive investment)
+            present_tech = (df.loc[df["Investment Cost (B€)"] > 0.001, "technology"].dropna().unique().tolist())
+            if not present_tech:
+                st.info("No technologies with investment cost for the selected filters.")
+                st.stop()
+            TECH_ORDER_NODE = [t for t in TECH_ORDER if t in present_tech]
+            df["technology"] = pd.Categorical(df["technology"], categories=TECH_ORDER_NODE, ordered=True)
+            POLY_ORDER = sorted(sorted(df["polygon"].dropna().unique()), key=lambda x: (x != "Europe", x))
+            df["polygon"] = pd.Categorical(df["polygon"], categories=POLY_ORDER, ordered=True)
+            full_idx = pd.MultiIndex.from_product([POLY_ORDER, TECH_ORDER_NODE], names=["polygon", "technology"])
+            agg_inv = (df.pivot_table(index=["polygon", "technology"],values="Investment Cost (B€)",aggfunc="sum",observed=False, ).reindex(full_idx, fill_value=0.0).reset_index())
+            fig_inv = px.bar(agg_inv,x="polygon",y="Investment Cost (B€)",color="technology",color_discrete_map=color_map,barmode="stack",category_orders={"polygon": POLY_ORDER, "technology": TECH_ORDER_NODE},title=f"Investment Cost from 2030 to 2060 by Country ({scenario})")
+            fig_inv.update_layout(height=height_value,bargap=0.15,template="plotly_white",legend_title_text="Technology",yaxis_title="Investment Cost (B€)",)
+            y_max = agg_inv.groupby("polygon", observed=False)["Investment Cost (B€)"].sum().max()
+            if pd.isna(y_max):
+                y_max = 0
+            y_pad = y_max * 0.05 if y_max > 0 else 1.0
+            fig_inv.update_yaxes(range=[0, y_max + y_pad])
+            fig_inv.update_traces(hovertemplate="<b>%{x}</b><br>%{legendgroup}: %{y:.2f} B€<extra></extra>")
+            st.plotly_chart(fig_inv, width="stretch")
+            download_plot(fig_inv, "investment_cost_by_country_all_years")
+
+    # ----------------------------
+    # Plot 5: Installed Capacity Map
+    # ----------------------------
+
+    with tab5:
         st.header("Installed Capacity Map Comparison")
         POLY_COL = "id"
-        geojson_obj, gdf_base = load_geodata("onshore_PECD1.geojson", POLY_COL)
+        geojson_obj, gdf_base = load_geodata("config/onshore_PECD1.geojson", POLY_COL)
         map_tech = st.selectbox("Technology", TECH_ORDER)  # no "All Technologies"
 
         df_cap = merged[(merged["scenario"] == scenario) & (merged["technology"] == map_tech)].copy()
@@ -497,9 +540,9 @@ def main():
             st.plotly_chart(fig_map, width="stretch")
         
     # ----------------------
-    # Plot 5: Storage
+    # Plot 6: Storage
     # ----------------------
-    with tab5:
+    with tab6:
         st.header("Node State by Storage Type and Country")
         scenario_storage = scenario
         df_storage = storage_dict[scenario_storage].copy()
@@ -550,7 +593,7 @@ def main():
     # -------------------------------
     # Sankey Diagrams
     # -------------------------------
-    with tab6:
+    with tab7:
         st.header("Sankey Diagrams")
 
         col1, col2= st.columns(2)
@@ -582,14 +625,12 @@ def main():
 
     
     # -------------------------------------------------
-    # Tab 7: Flow Map (Cross-border flows, zoomed + arrows)
+    # Flow Map (Cross-border flows)
     # -------------------------------------------------
-
-
-    with tab7:
+    with tab8:
         st.header("Flow Map (Cross-border)")
         POLY_COL = "id"
-        geojson_obj, gdf_base = load_geodata("onshore_PECD1.geojson", POLY_COL)
+        geojson_obj, gdf_base = load_geodata("config/onshore_PECD1.geojson", POLY_COL)
         if crossborder_flows.empty: st.info("No cross-border flow data loaded."); st.stop()
 
         # Commodity (node) selection

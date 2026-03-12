@@ -22,7 +22,8 @@ pulp: pulp
 paper: paper
 transport-equipment: transport-equipment
 wood-and-wood-products: wood
-battery-storage: electricity
+battery-storage: electricity-storage
+battery-storage-iron-air: electricity-storage
 elec: electricity
 residual-elec: residual-electricity
 H2: hydrogen

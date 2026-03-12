@@ -37,14 +37,16 @@ if len(sys.argv) > 3:
     with open(sys.argv[3], 'r') as file:
         scenario_config = yaml.safe_load(file)
 
-with open("node_mapping.yml","r") as file:
+with open("config/node_mapping.yml","r") as file:
     node_map = yaml.safe_load(file)
-with open("node_mapping_sankey.yml","r") as file:
+with open("config/node_mapping_sankey.yml","r") as file:
     node_map_sankey = yaml.safe_load(file)
-with open("unit_mapping.yml","r") as file:
+with open("config/unit_mapping.yml","r") as file:
     unit_map = yaml.safe_load(file)
-with open("scenario_mapping.yml","r") as file:
+with open("config/scenario_mapping.yml","r") as file:
     scenario_map = yaml.safe_load(file)
+with open("config/storage_node_map.yml","r") as file:
+    storage_node_map = yaml.safe_load(file)
         
 
 def extract_polygon(unit_name: str):
@@ -129,7 +131,10 @@ def from_DB_to_df(map_years):
 
                     if node_name != "atmosphere":
                         if not (any(i in unit_name for i in ["+CC","MEA","DEA","-CC","Oxy","CaL"]) and node_name.split("_")[0] == "CO2"):
-                            unit_to_node_map[unit_name] = node_name.split("_")[0] 
+                            if any(i in unit_name for i in storage_node_map):
+                                unit_to_node_map[unit_name] = [storage_node_map[i] for i in storage_node_map if i in unit_name][0]
+                            else:
+                                unit_to_node_map[unit_name] = node_name.split("_")[0] 
                         if "wind" in unit_name:
                             energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["wind",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
                         elif "solar" in unit_name:
@@ -387,6 +392,18 @@ def run_streamlit_app(app_path: str):
     finally:
         sys.argv = original_argv
 
+def clean_storage_flows(energy_map,unit_to_node_map,map_years):
+
+    for storage in storage_node_map:
+        sto_i = energy_map[energy_map["source"] == storage].index[0]
+        unit_name_dir1 = energy_map.at[sto_i,"target"]
+        unit_name_dir2 = "__".join([unit_name_dir1.split("__")[1],unit_name_dir1.split("__")[0]])
+        unit_to_node_map[unit_name_dir2] = storage
+        com_i  = energy_map[(energy_map["source"] == storage_node_map[storage])&(energy_map["target"] == unit_name_dir1)].index[0]
+        energy_map.loc[com_i,"target"] = unit_name_dir2
+        #energy_map.loc[com_i,list(map_years.values())] = energy_map.loc[com_i,list(map_years.values())] - energy_map.loc[sto_i,list(map_years.values())]
+        #energy_map.drop(index=sto_i, axis=0, inplace=True)
+    return energy_map, unit_to_node_map
 def main():
 
     resolution = 1
@@ -401,6 +418,7 @@ def main():
     emission_list = []
     for alternative_name in energy_map:
         energy_map[alternative_name]["polygon"] = energy_map[alternative_name]["target"].map(extract_polygon)
+        energy_map[alternative_name], unit_to_node_map = clean_storage_flows(energy_map[alternative_name],unit_to_node_map, map_years)
         energy_map[alternative_name]["technology"] = energy_map[alternative_name]["target"].values
         energy_map[alternative_name]["target"] = energy_map[alternative_name]["target"].map(unit_to_node_map)
         energy_map[alternative_name]["target"] = energy_map[alternative_name]["target"].map(node_map_sankey)
