@@ -395,15 +395,16 @@ def run_streamlit_app(app_path: str):
 def clean_storage_flows(energy_map,unit_to_node_map,map_years):
 
     for storage in storage_node_map:
-        sto_i = energy_map[energy_map["source"] == storage].index[0]
-        unit_name_dir1 = energy_map.at[sto_i,"target"]
-        unit_name_dir2 = "__".join([unit_name_dir1.split("__")[1],unit_name_dir1.split("__")[0]])
-        unit_to_node_map[unit_name_dir2] = storage
-        com_i  = energy_map[(energy_map["source"] == storage_node_map[storage])&(energy_map["target"] == unit_name_dir1)].index[0]
-        energy_map.loc[com_i,"target"] = unit_name_dir2
-        #energy_map.loc[com_i,list(map_years.values())] = energy_map.loc[com_i,list(map_years.values())] - energy_map.loc[sto_i,list(map_years.values())]
-        #energy_map.drop(index=sto_i, axis=0, inplace=True)
+        sto_indexes = energy_map[energy_map["source"] == storage].index
+        for sto_i in sto_indexes:
+            unit_name_dir1 = energy_map.at[sto_i,"target"]
+            unit_name_dir2 = "__".join([unit_name_dir1.split("__")[1],unit_name_dir1.split("__")[0]])
+            unit_to_node_map[unit_name_dir2] = storage
+            com_i  = energy_map[(energy_map["source"] == storage_node_map[storage])&(energy_map["target"] == unit_name_dir1)].index[0]
+            energy_map.loc[com_i,"target"] = unit_name_dir2
+
     return energy_map, unit_to_node_map
+
 def main():
 
     resolution = 1
