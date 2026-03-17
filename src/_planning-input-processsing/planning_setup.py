@@ -11,6 +11,11 @@ import json
 import yaml 
 import time as time_lib
 
+future_inflation = 0.03
+final_year = 2060
+default_technology_discount_rate = 0.05
+dates = ["2030-01-01T00:00:00","2041-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
+
 if len(sys.argv) > 1:
     url_spineopt = sys.argv[1]
 else:
@@ -94,7 +99,7 @@ def investment_cost_update():
                     rate_list = sopt_db.get_parameter_value_items(parameter_definition_name = "discount_rate")
                     if not rate_list:
                         print("Model discount rate not found. Using 0.05 as default")
-                        rate = 0.05
+                        rate = default_technology_discount_rate
                     else:
                         rate = rate_list[0]["parsed_value"]
                 else:
@@ -111,24 +116,35 @@ def investment_cost_update():
                     # print("new value for the fom cost", (fom_cost.values[0] if fom_dict["type"]=="time_series" else fom_cost))
                     add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_dict["parsed_value"].values[2] if fom_dict["type"]=="time_series" else fom_dict["parsed_value"]))
 
-                
-                dates = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
-                year_dur = [30,20,10]
+                value_dict = {}
                 if parameter_map["type"] == "float":
-                    annual_cost = (parameter_map["parsed_value"] * annuity_factor)
-                    new_values  = [annual_cost*min(lifetime,year_dur[0]),annual_cost*min(lifetime,year_dur[1]),annual_cost*min(lifetime,year_dur[2]),annual_cost*min(lifetime,year_dur[2])]
-                    new_value   = {"type":"time_series","data":dict(zip(dates,new_values))}
+                    for date in dates:
+                        if date != dates[-1]:
+                            annual_cost = parameter_map["parsed_value"]*((1+future_inflation)**(pd.Timestamp(date).year-2025))*(rate*(1+rate)**(lifetime)/((1+rate)**(lifetime)-1))
+                            value_dict[date] = sum(annual_cost*(1+future_inflation)**(2025-i) for i in range(pd.Timestamp(date).year,min(lifetime,final_year-pd.Timestamp(date).year)))
+                        else:
+                            value_dict[dates[-1]] = value_dict[dates[-2]] 
+                    new_value   = {"type":"time_series","data":value_dict}
                 else:
-                    annual_cost = parameter_map["parsed_value"].values * annuity_factor
-                    #breakpoint()
                     if fom_cost_condition:
                         if fom_dict["type"] == "float":
                             fixed_cost = [fom_dict["parsed_value"],fom_dict["parsed_value"],fom_dict["parsed_value"]]
                         else:
                             fixed_cost = [fom_dict["parsed_value"].values[0],fom_dict["parsed_value"].values[1],fom_dict["parsed_value"].values[2]]
 
-                    new_values = [(annual_cost[0] + ((fixed_cost[0] - fixed_cost[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[0]),(annual_cost[1] + ((fixed_cost[1] - fixed_cost[2])*8760 if fom_cost_condition else 0.0))*min(lifetime,year_dur[1]),annual_cost[2]*min(lifetime,year_dur[2]),annual_cost[2]*min(lifetime,year_dur[2])]
-                    new_value = {"type":"time_series", "data": dict(zip(dates,new_values))}   
+                    map_table = convert_map_to_table(parameter_map["parsed_value"])
+                    index_names = nested_index_names(parameter_map["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + ["value"]).set_index(index_names[0])["value"]
+                    data.index = [pd.Timestamp(i).isoformat() for i in data.index]
+                    #print(data)
+                    for date in dates:
+                        #print(date)
+                        if date != dates[-1]:
+                            annual_cost = data.at[date]*((1+future_inflation)**(pd.Timestamp(date).year-2025))*(rate*(1+rate)**(lifetime)/((1+rate)**(lifetime)-1))
+                            value_dict[date] = sum(annual_cost*(1+future_inflation)**(2025-i) for i in range(pd.Timestamp(date).year,min(lifetime,final_year-pd.Timestamp(date).year))) + ((fixed_cost[dates.index(date)] - fixed_cost[2])*8760 if fom_cost_condition else 0.0) + min(lifetime,final_year-pd.Timestamp(date).year)
+                        else:
+                            value_dict[dates[-1]] = value_dict[dates[-2]] 
+                    new_value   = {"type":"time_series","data":value_dict} 
                 
                 # print("new value for the value cost", parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
                 add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
@@ -162,14 +178,15 @@ def manage_output():
         report_name = "default_report"
         add_entity(sopt_db,"report",(report_name,))
         add_entity(sopt_db,"model__report",("capacity_planning",report_name))
-        outputs = ["unit_capacity","connection_capacity","node_state_cap","demand",
+        outputs = ["unit_capacity","connection_capacity","node_state_cap",#"demand",
                    "connections_invested","connections_invested_available","connections_decommissioned","units_invested","units_invested_available","units_mothballed",
                    "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","longterm_node_state","node_injection","weight","fractional_demand",
-                   "unit_investment_cost","connection_investment_cost","storage_investment_cost",
+                   #"unit_investment_cost","connection_investment_cost","storage_investment_cost",
                    "unit_investment_costs","connection_investment_costs","storage_investment_costs","fixed_om_costs","variable_om_costs","fuel_costs","connection_flow_costs","taxes","objective_penalties",
-                   "node_slack_neg","node_slack_pos",
-                   "constraint_nodal_balance","constraint_units_available",
-                   "bound_units_on"]
+                   "total_costs"]
+                   #"node_slack_neg","node_slack_pos",
+                   #"constraint_nodal_balance","constraint_units_available",
+                   #"bound_units_on"]
         
         for output in outputs:
             add_entity(sopt_db,"output",(output,))

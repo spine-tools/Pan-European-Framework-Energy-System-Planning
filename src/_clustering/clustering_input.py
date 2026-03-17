@@ -6,6 +6,7 @@ import numpy as np
 import os
 from sklearn.preprocessing import MinMaxScaler
 from sqlalchemy.exc import DBAPIError
+import re
 
 sopt_db =  DatabaseMapping(sys.argv[1])
 
@@ -32,6 +33,18 @@ def add_alternative(db_map : DatabaseMapping,name_alternative : str) -> None:
 
 def input_data():
 
+    patterns = {"wind": ["wind"],
+            "solar": ["solar"],
+            "RoR": ["ror"],  # 'RoR' en minúsculas porque hacemos case-insensitive
+            "reservoir": ["reservoir"],
+            "elec": ["elec"],
+            "cool": ["cool"],
+            "DHW_or_space": ["dhw", "space"],
+            "transport_truck_bus_van_car_rail_aviation_maritime": [
+                "truck", "bus", "van", "car", "rail", "aviation", "maritime"
+            ],
+        }
+
     dict_df = {}
     for alternative_name in ["wy2009"]:
         columns_names = []
@@ -45,12 +58,19 @@ def input_data():
         scaler = MinMaxScaler()
         df_ts = pd.DataFrame(scaler.fit_transform(array_ts),index = range(1,array_ts.shape[0]+1), columns = columns_names).rename_axis("timestep").reset_index()
         dict_df[alternative_name] = pd.melt(df_ts, id_vars=df_ts.columns.tolist()[:1], value_vars=df_ts.columns.tolist()[1:], var_name='profile_name', value_name='value')[["profile_name","timestep","value"]]
-        header_row = pd.DataFrame([dict_df[alternative_name].columns.tolist()], columns=dict_df[alternative_name].columns)
-        new_row = pd.DataFrame([["","","MW/pu"]],columns=dict_df[alternative_name].columns)
-        #pd.concat([new_row,header_row,dict_df[alternative_name]],ignore_index=True).to_csv(f"profiles/profiles_{alternative_name}.csv",index=False,header=False)
-        pd.concat([header_row,dict_df[alternative_name]],ignore_index=True).to_csv(f"profiles/profiles_{alternative_name}.csv",index=False,header=False)
+        profiles_df = pd.concat([dict_df[alternative_name]],ignore_index=True)
+        print(profiles_df)
+        per_cat = {}
+        for cat, keys in patterns.items():
+            pat = r"|".join(re.escape(k) for k in keys)
+            mask = profiles_df["profile_name"].str.contains(pat, case=False, na=False)
+            per_cat[cat] = profiles_df.loc[mask].groupby("timestep", dropna=True)["value"].mean()
 
+        wide = pd.DataFrame(per_cat).sort_index() 
+        long = (wide.reset_index(names="timestep").melt(id_vars="timestep", var_name="profile_name", value_name="value").sort_values(["profile_name", "timestep"]).reset_index(drop=True))    
 
+        long = long[["profile_name","timestep","value"]]
+        long.to_csv(f"profiles/profiles_{alternative_name}.csv",index=False)
 
 if __name__ == "__main__":
     input_data()

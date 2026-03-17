@@ -45,7 +45,7 @@ with open("config/unit_mapping.yml","r") as file:
     unit_map = yaml.safe_load(file)
 with open("config/scenario_mapping.yml","r") as file:
     scenario_map = yaml.safe_load(file)
-with open("config/storage_node_map.yml","r") as file:
+with open("config/bidirectional_storage_node_map.yml","r") as file:
     storage_node_map = yaml.safe_load(file)
         
 
