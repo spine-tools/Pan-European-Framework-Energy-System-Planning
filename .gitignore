@@ -161,7 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-src/_clustering/profiles/
-src/_clustering/results/
-src/_visualization/files_out/
-src/_visualization/pictures/
+src/_clustering/profiles/*.csv
+src/_clustering/results/*.csv
+src/_visualization/files_out/*.csv
+src/_visualization/files_out/*.dill
+src/_visualization/pictures/*.csv

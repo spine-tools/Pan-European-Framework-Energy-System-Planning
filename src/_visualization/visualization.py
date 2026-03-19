@@ -261,12 +261,12 @@ def from_DB_to_df(map_years):
                 
                 units_inv[alte_name].loc[units_inv[alte_name].shape[0],:] = [unit_name] + (capacity_value*data[unit_name]).to_list()
                 if data[unit_name].sum() > 0.001:
-                    inv_cost = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "unit_investment_cost", entity_byname = param_map["entity_byname"])
+                    inv_cost = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base",parameter_definition_name = "unit_investment_cost", entity_byname = (unit_name,))
                     if inv_cost:
                         map_table = convert_map_to_table(inv_cost["parsed_value"])
                         index_names = nested_index_names(inv_cost["parsed_value"])
                         data_inv = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])
-                        units_inv_cost[alte_name].loc[units_inv_cost[alte_name].shape[0],:] = [unit_name] + [capacity_value*data.at[i,unit_name]*data_inv.at[i,unit_name] for i in data[unit_name].index]
+                        units_inv_cost[alte_name].loc[units_inv_cost[alte_name].shape[0],:] = [unit_name] + [capacity_value*data.at[i,unit_name]*data_inv.at[(i if i.year != 2040 else pd.Timestamp("2041-01-01")),unit_name] for i in data[unit_name].index]
 
                 decommissioned = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "units_mothballed", entity_byname = param_map["entity_byname"])
                 map_table = convert_map_to_table(decommissioned["parsed_value"])
@@ -275,7 +275,7 @@ def from_DB_to_df(map_years):
                 
                 units_dec[alte_name].loc[units_inv[alte_name].shape[0],:] = [unit_name] + (capacity_value*data[unit_name]).to_list()
 
-    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "longterm_node_state"):
+    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "node_state_longterm"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
         if scenario_name in latest_alternatives:
@@ -424,7 +424,7 @@ def main():
         energy_map[alternative_name]["target"] = energy_map[alternative_name]["target"].map(unit_to_node_map)
         energy_map[alternative_name]["target"] = energy_map[alternative_name]["target"].map(node_map_sankey)
         energy_map[alternative_name]["source"] = energy_map[alternative_name]["source"].map(node_map_sankey)
-        energy_map[alternative_name][list(map_years.values())] /= 1e6
+        energy_map[alternative_name][list(map_years.values())] /= 1e3
         energy_map[alternative_name] = energy_map[alternative_name][energy_map[alternative_name]["source"] != energy_map[alternative_name]["target"]]
         energy_map[alternative_name] = energy_map[alternative_name][energy_map[alternative_name][list(map_years.values())].sum(axis=1) > 0.001]
         energy_map[alternative_name]["scenario"] = alternative_name

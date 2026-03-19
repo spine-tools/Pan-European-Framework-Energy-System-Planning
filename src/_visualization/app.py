@@ -122,11 +122,11 @@ def preprocess_data(installed, invested, invested_cost, decommissioned, unit_to_
     merged["technology"] = merged["technology"].replace({"nan": "Unknown"})
 
     # Convertir de MW a GW
-    merged["Installed"] = merged["Installed"] / 1000
-    merged["Invested"] = merged["Invested"] / 1000
-    merged["Invested_Cost"] = merged["Invested_Cost"] / 1e9
-    merged["Decommissioned"] = merged["Decommissioned"] / 1000
-    merged["UnitFlows"] = merged["UnitFlows"] / 1e6
+    merged["Installed"] = merged["Installed"] / 1
+    merged["Invested"] = merged["Invested"] / 1
+    merged["Invested_Cost"] = merged["Invested_Cost"] / 1e3
+    merged["Decommissioned"] = merged["Decommissioned"] / 1
+    merged["UnitFlows"] = merged["UnitFlows"] / 1e3
 
     return merged
 
@@ -504,7 +504,6 @@ def main():
                 y_max = 0
             y_pad = y_max * 0.05 if y_max > 0 else 1.0
             fig_inv.update_yaxes(range=[0, y_max + y_pad])
-            fig_inv.update_traces(hovertemplate="<b>%{x}</b><br>%{legendgroup}: %{y:.2f} B€<extra></extra>")
             st.plotly_chart(fig_inv, width="stretch")
             download_plot(fig_inv, "investment_cost_by_country_all_years")
 

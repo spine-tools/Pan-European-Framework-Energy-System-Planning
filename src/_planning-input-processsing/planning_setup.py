@@ -117,13 +117,16 @@ def investment_cost_update():
                     add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_dict["parsed_value"].values[2] if fom_dict["type"]=="time_series" else fom_dict["parsed_value"]))
 
                 value_dict = {}
-                if parameter_map["type"] == "float":
+                crf = rate * (1 + rate)**lifetime / ((1 + rate)**lifetime - 1)
+                if parameter_map["type"] == "float":                 
                     for date in dates:
                         if date != dates[-1]:
-                            annual_cost = parameter_map["parsed_value"]*((1+future_inflation)**(pd.Timestamp(date).year-2025))*(rate*(1+rate)**(lifetime)/((1+rate)**(lifetime)-1))
-                            value_dict[date] = sum(annual_cost*(1+future_inflation)**(2025-i) for i in range(pd.Timestamp(date).year,min(lifetime,final_year-pd.Timestamp(date).year)))
+                            year = pd.Timestamp(date).year
+                            n_years = min(lifetime, final_year - year)
+                            annual_cost_nominal = parameter_map["parsed_value"] * (1 + future_inflation)**(year - 2025) * crf
+                            value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(2025 - i) for i in range(year, year + n_years))
                         else:
-                            value_dict[dates[-1]] = value_dict[dates[-2]] 
+                            value_dict[dates[-1]] = value_dict[dates[-2]]
                     new_value   = {"type":"time_series","data":value_dict}
                 else:
                     if fom_cost_condition:
@@ -138,10 +141,11 @@ def investment_cost_update():
                     data.index = [pd.Timestamp(i).isoformat() for i in data.index]
                     #print(data)
                     for date in dates:
-                        #print(date)
                         if date != dates[-1]:
-                            annual_cost = data.at[date]*((1+future_inflation)**(pd.Timestamp(date).year-2025))*(rate*(1+rate)**(lifetime)/((1+rate)**(lifetime)-1))
-                            value_dict[date] = sum(annual_cost*(1+future_inflation)**(2025-i) for i in range(pd.Timestamp(date).year,min(lifetime,final_year-pd.Timestamp(date).year))) + ((fixed_cost[dates.index(date)] - fixed_cost[2])*8760 if fom_cost_condition else 0.0) + min(lifetime,final_year-pd.Timestamp(date).year)
+                            year = pd.Timestamp(date).year
+                            n_years = min(lifetime, final_year - year)
+                            annual_cost_nominal = data[date]* (1 + future_inflation)**(year - 2025) * crf
+                            value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(2025 - i) for i in range(year, year + n_years)) + ((fixed_cost[dates.index(date)] - fixed_cost[2])*8760 if fom_cost_condition else 0.0)*n_years
                         else:
                             value_dict[dates[-1]] = value_dict[dates[-2]] 
                     new_value   = {"type":"time_series","data":value_dict} 
@@ -180,7 +184,7 @@ def manage_output():
         add_entity(sopt_db,"model__report",("capacity_planning",report_name))
         outputs = ["unit_capacity","connection_capacity","node_state_cap",#"demand",
                    "connections_invested","connections_invested_available","connections_decommissioned","units_invested","units_invested_available","units_mothballed",
-                   "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","longterm_node_state","node_injection","weight","fractional_demand",
+                   "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","node_state_longterm","node_injection","weight","fractional_demand",
                    #"unit_investment_cost","connection_investment_cost","storage_investment_cost",
                    "unit_investment_costs","connection_investment_costs","storage_investment_costs","fixed_om_costs","variable_om_costs","fuel_costs","connection_flow_costs","taxes","objective_penalties",
                    "total_costs"]
@@ -196,14 +200,30 @@ def manage_output():
 def solver_options():
     with DatabaseMapping(url_spineopt) as sopt_db:
         map_options = {"type":"map","index_type":"str","index_name":"x","data":
-                       {"HiGHS.jl" :{"type":"map","index_type":"str","index_name":"x","data":{"presolve":"on","time_limit":3600.01,"user_bound_scale":-9}},
+                       {"HiGHS.jl" :{"type":"map","index_type":"str","index_name":"x","data":{"presolve":"on","time_limit":3600.01}},
                         "Gurobi.jl":{"type":"map","index_type":"str","index_name":"x","data":{"Method":2.0,"NumericFocus":2.0,"Crossover":0.0}}}}
         
         add_parameter_value(sopt_db,"model","db_mip_solver_options","Base",("capacity_planning",),map_options)
-        add_parameter_value(sopt_db,"model","db_mip_solver","Base",("capacity_planning",),"HiGHS.jl")
+        add_parameter_value(sopt_db,"model","db_mip_solver","Base",("capacity_planning",),"Gurobi.jl")
         sopt_db.commit_session("Added solver_options")
 
-def hydro_TB():
+def main():
+
+    print("Updating invesment costs and FOM costs")
+    investment_cost_update()
+    print("Heat pump constraints")
+    air_ground_heatpump()
+    print("managing outputs")
+    manage_output()
+    print("adding solver options")
+    solver_options()
+
+
+if __name__ == "__main__":
+    main()
+
+
+'''def hydro_TB():
 
     with DatabaseMapping(url_spineopt) as sopt_db:
 
@@ -264,19 +284,4 @@ def industry_TB():
             for iunit in iunits+ref_units:
                 add_entity(sopt_db,"units_on__temporal_block",(iunit,"industry_"+entity_tb["name"]))
         
-        sopt_db.commit_session("Added industry_tb")
-
-def main():
-
-    print("Updating invesment costs and FOM costs")
-    investment_cost_update()
-    print("Heat pump constraints")
-    air_ground_heatpump()
-    print("managing outputs")
-    manage_output()
-    print("adding solver options")
-    solver_options()
-
-
-if __name__ == "__main__":
-    main()
+        sopt_db.commit_session("Added industry_tb")'''
