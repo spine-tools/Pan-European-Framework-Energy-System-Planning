@@ -182,7 +182,7 @@ def manage_output():
         report_name = "default_report"
         add_entity(sopt_db,"report",(report_name,))
         add_entity(sopt_db,"model__report",("capacity_planning",report_name))
-        outputs = ["unit_capacity","connection_capacity","node_state_cap",#"demand",
+        outputs = ["unit_capacity","connection_capacity","node_state_cap","demand",
                    "connections_invested","connections_invested_available","connections_decommissioned","units_invested","units_invested_available","units_mothballed",
                    "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","node_state_longterm","node_injection","weight","fractional_demand",
                    #"unit_investment_cost","connection_investment_cost","storage_investment_cost",
