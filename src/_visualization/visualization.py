@@ -142,7 +142,7 @@ def from_DB_to_df(map_years):
                         elif "RoR" in unit_name:
                             energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["hydro",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
                     else:
-                        emission_map[alte_name].loc[energy_map[alte_name].shape[0],:] = [unit_name,"atmosphere"] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        emission_map[alte_name].loc[emission_map[alte_name].shape[0],:] = [unit_name,"atmosphere"] + [data[data.index.year==year_i].sum() for year_i in map_years]
 
                 elif "from_node" in param_map["entity_byname"]:
                     unit_name = param_map["entity_byname"][1]
@@ -158,7 +158,7 @@ def from_DB_to_df(map_years):
                     if node_name != "atmosphere":
                         energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = [node_name.split("_")[0],unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
                     else:
-                        emission_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["atmosphere",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        emission_map[alte_name].loc[emission_map[alte_name].shape[0],:] = ["atmosphere",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
 
     analyzed_vehs = ["car","van","bus","truck","aviation","maritime","rail"]
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "connection_flow"):
@@ -530,7 +530,7 @@ def main():
     flows = []
     for alternative_name in flows_map:
         flows_map[alternative_name]["commodity"] = flows_map[alternative_name]["commodity"].map(node_map)
-        flows_map[alternative_name][list(map_years.values())] *= resolution/1e6
+        flows_map[alternative_name][list(map_years.values())] *= resolution/1e3
         flows_map[alternative_name] = flows_map[alternative_name][flows_map[alternative_name]["source"] != flows_map[alternative_name]["target"]]
         flows_map[alternative_name] = flows_map[alternative_name][flows_map[alternative_name][list(map_years.values())].sum(axis=1) > 0.001]
         # Merging both directions of the flow

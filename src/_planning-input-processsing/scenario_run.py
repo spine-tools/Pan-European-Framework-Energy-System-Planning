@@ -137,10 +137,10 @@ def update_parameters(config):
     with DatabaseMapping(url_spineopt) as sopt_db:
 
         resolution_ = config["resolution"]
-
-        add_or_update_parameter_value(sopt_db, "temporal_block", "resolution", "Base", ("operations_y2030", ),  {"type":"duration","data":resolution_})
-        add_or_update_parameter_value(sopt_db, "temporal_block", "resolution", "Base", ("operations_y2040", ),  {"type":"duration","data":resolution_})
-        add_or_update_parameter_value(sopt_db, "temporal_block", "resolution", "Base", ("operations_y2050", ),  {"type":"duration","data":resolution_})
+        parameter_value = {"type":"duration","data":resolution_}
+        for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "resolution"):
+            if "planning" not in parameter_map["entity_byname"][0]:
+                add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], "resolution", parameter_map["alternative_name"], parameter_map["entity_byname"], parameter_value)
         add_or_update_parameter_value(sopt_db, "node", "initial_storages_invested_available", "Base", ("CO2", ), 0.2*1e3/config["emission_factor"])
         add_or_update_parameter_value(sopt_db, "node", "fix_storages_invested_available", "Base", ("CO2", ), 0.2*1e3/config["emission_factor"])
         add_or_update_parameter_value(sopt_db, "node", "node_state_cap", "Base", ("atmosphere", ), 2.2*1e6/config["emission_factor"])
