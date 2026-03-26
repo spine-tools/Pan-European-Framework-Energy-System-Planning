@@ -139,8 +139,13 @@ def update_parameters(config):
         resolution_ = config["resolution"]
         parameter_value = {"type":"duration","data":resolution_}
         for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "resolution"):
+<<<<<<< HEAD
             if "planning" not in parameter_map["entity_byname"][0]:
                 add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], "resolution", parameter_map["alternative_name"], parameter_map["entity_byname"], parameter_value)
+=======
+            add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], "resolution", parameter_map["alternative_name"], parameter_map["entity_byname"], parameter_value)
+
+>>>>>>> 9f47d45cada4e26de09e42cfc9f13c9d217bafaa
         add_or_update_parameter_value(sopt_db, "node", "initial_storages_invested_available", "Base", ("CO2", ), 0.2*1e3/config["emission_factor"])
         add_or_update_parameter_value(sopt_db, "node", "fix_storages_invested_available", "Base", ("CO2", ), 0.2*1e3/config["emission_factor"])
         add_or_update_parameter_value(sopt_db, "node", "node_state_cap", "Base", ("atmosphere", ), 2.2*1e6/config["emission_factor"])

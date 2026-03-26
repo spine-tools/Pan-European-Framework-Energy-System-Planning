@@ -28,10 +28,10 @@ This dataset includes data of EU27 plus UK, CH and NO.
 * __NUTS3__: Small regions, see details [here](https://ec.europa.eu/eurostat/web/nuts/) (v2021).
 
 **PECD2 polygons**
-![ProjectFolder](figs/on_pecd.png)
+![PECD2_polygons](figs/on_pecd.png)
 
 **NUTS3 polygons**
-![ProjectFolder](figs/on_pecd.png)
+![NUTS3_polygons](figs/on_pecd.png)
 
 ## Offshore
 * __OFF1__: Seabasin resolution (North Sea, Baltic Sea, North Atlantic, Western Mediterranean, etc).
@@ -39,7 +39,7 @@ This dataset includes data of EU27 plus UK, CH and NO.
 * __OFF3__: Highest resolution used in ENTSO-E, more granular than OFF3.
 
 **OFF3 polygons**
-![ProjectFolder](figs/off3.png)
+![OFF3_polygons](figs/off3.png)
 
 # VRE
 This pipeline counts with a set of different technologies:

@@ -25,7 +25,7 @@ The `userconfig.yaml` file is structured into several main sections that control
 - **Timeline**: Set historical periods
 - **Global Constraints**: Configure CO₂ budgets
 - **Commodities**: Define energy carriers and their properties
-- **Netowrk**: Configure transmission networks
+- **Network**: Configure transmission networks
 - **Storage**: Select storage technologies and investment options
 - **Technologies**: Configure power generation, conversion, and end-use technologies
 - **End-use**: Define heating and cooling demand sectors
@@ -169,6 +169,9 @@ model:
       "2030": ["2030-01-01T00:00:00", 10.0]
       "2040": ["2041-01-01T00:00:00", 10.0]
       "2050": ["2050-01-01T00:00:00", 10.0]
+    units: # options: GW and Meuro, or MW and euro
+      energy: "GW" # GW or MW
+      cost: "Meuro" # Million euro or euro
 ```
 
 **Parameters**:
@@ -180,6 +183,10 @@ model:
 - `planning_years`: Dictionary of target years with:
   - Start date in ISO format
   - Investment period weight (typically 10.0)
+- `units`: which units we use for the parameters to correctly scale the optimization model:
+  - energy units, you can select GW or MW (GWh or MWh)
+  - cost units, you can select Meuro (million euros) or euros.
+  - There are two options available, GW and Meuro or MW and euro.
 
 **Available Planning Years**: 2030, 2040, 2050
 
