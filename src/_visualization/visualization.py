@@ -23,13 +23,17 @@ import geopandas as gpd
 import sys
 from streamlit.web import cli as stcli
 import dill
+import time as time_lib
 
+start_time = time_lib.time()
 url_results = sys.argv[1]
 result_db = DatabaseMapping(url_results)
+result_db.fetch_all()
 
 if len(sys.argv) > 2:
     sopt_results = sys.argv[2]
     sopt_db = DatabaseMapping(sopt_results)
+    sopt_db.fetch_all()
 else:
     print("There is no associated SpineOpt DB, you will get an error if you call it")
 
@@ -46,6 +50,8 @@ with open("config/unit_mapping.yml","r") as file:
 with open("config/scenario_mapping.yml","r") as file:
     scenario_map = yaml.safe_load(file)
 with open("config/bidirectional_storage_node_map.yml","r") as file:
+    storage_bi_node_map = yaml.safe_load(file)
+with open("config/storage_node_mapping.yml","r") as file:
     storage_node_map = yaml.safe_load(file)
         
 
@@ -96,16 +102,20 @@ def from_DB_to_df(map_years):
 
     analyzed_nodes = ["elec","HC","H2","CH4","heat","cool","MeOH"]#,"steel-primary","steel-secondary","MeOH","glass-float","glass-container","glass-fibre","fertiliser-ammonia-NH3","chemical-PE","chemical-PEA","chemical-olefins","cement"]
     unit_to_node_map = {}
-    energy_map    = {name:pd.DataFrame(columns=["source","target"]+years) for name in latest_alternatives}
-    flows_map     = {name:pd.DataFrame(columns=["source","target","commodity"]+years) for name in latest_alternatives}
-    flows_sto     = {name:pd.DataFrame(columns=["source","target"]+years) for name in latest_alternatives}
-    emission_map  = {name:pd.DataFrame(columns=["source","target"]+years) for name in latest_alternatives}
-    unit_to_flows = {name:pd.DataFrame(columns=["unit_name","node"]+years) for name in latest_alternatives}
-    units_cap     = {name:pd.DataFrame(columns=["unit_name"]+years) for name in latest_alternatives}
-    units_inv     = {name:pd.DataFrame(columns=["unit_name"]+years) for name in latest_alternatives}
-    units_dec     = {name:pd.DataFrame(columns=["unit_name"]+years) for name in latest_alternatives}
-    units_inv_cost= {name:pd.DataFrame(columns=["unit_name"]+years) for name in latest_alternatives}
-    node_state    = {name:pd.DataFrame() for name in latest_alternatives}
+    energy_map_list    = {name:[] for name in latest_alternatives}
+    flows_map_list     = {name:[] for name in latest_alternatives}
+    flows_sto_list     = {name:[] for name in latest_alternatives}
+    emission_map_list  = {name:[] for name in latest_alternatives}
+    unit_to_flows_list = {name:[] for name in latest_alternatives}
+    storages_cap_list  = {name:[] for name in latest_alternatives}
+    storages_inv_list  = {name:[] for name in latest_alternatives}
+    storages_dec_list  = {name:[] for name in latest_alternatives}
+    storages_cost_list = {name:[] for name in latest_alternatives}
+    units_cap_list     = {name:[] for name in latest_alternatives}
+    units_inv_list     = {name:[] for name in latest_alternatives}
+    units_dec_list     = {name:[] for name in latest_alternatives}
+    units_inv_cost_list= {name:[] for name in latest_alternatives}
+    node_state_parts   = {name:[] for name in latest_alternatives}
 
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "unit_flow"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
@@ -121,28 +131,29 @@ def from_DB_to_df(map_years):
                     map_table = convert_map_to_table(param_map["parsed_value"])
                     index_names = nested_index_names(param_map["parsed_value"])
                     data = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])[unit_name]
-                    data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                    data.index = pd.to_datetime(data.index.astype("string"))
 
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
 
-                    unit_to_flows[alte_name].loc[unit_to_flows[alte_name].shape[0],:] = [unit_name,node_name.split("_")[0]] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                    yearly_sums = data.groupby(data.index.year).sum()
+                    unit_to_flows_list[alte_name].append([unit_name,node_name.split("_")[0]] + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
                     if node_name != "atmosphere":
                         if not (any(i in unit_name for i in ["+CC","MEA","DEA","-CC","Oxy","CaL"]) and node_name.split("_")[0] == "CO2"):
-                            if any(i in unit_name for i in storage_node_map):
-                                unit_to_node_map[unit_name] = [storage_node_map[i] for i in storage_node_map if i in unit_name][0]
+                            if any(i in unit_name for i in storage_bi_node_map):
+                                unit_to_node_map[unit_name] = [storage_bi_node_map[i] for i in storage_bi_node_map if i in unit_name][0]
                             else:
                                 unit_to_node_map[unit_name] = node_name.split("_")[0] 
                         if "wind" in unit_name:
-                            energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["wind",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                            energy_map_list[alte_name].append(["wind",unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                         elif "solar" in unit_name:
-                            energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["solar",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                            energy_map_list[alte_name].append(["solar",unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                         elif "RoR" in unit_name:
-                            energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = ["hydro",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                            energy_map_list[alte_name].append(["hydro",unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                     else:
-                        emission_map[alte_name].loc[emission_map[alte_name].shape[0],:] = [unit_name,"atmosphere"] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        emission_map_list[alte_name].append([unit_name,"atmosphere"] + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
                 elif "from_node" in param_map["entity_byname"]:
                     unit_name = param_map["entity_byname"][1]
@@ -152,16 +163,20 @@ def from_DB_to_df(map_years):
                     index_names = nested_index_names(param_map["parsed_value"])
                     data = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])[unit_name]
                     data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                    
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
+                    
+                    yearly_sums = data.groupby(data.index.year).sum()
                     if node_name != "atmosphere":
-                        energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = [node_name.split("_")[0],unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        energy_map_list[alte_name].append([node_name.split("_")[0],unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                     else:
-                        emission_map[alte_name].loc[emission_map[alte_name].shape[0],:] = ["atmosphere",unit_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        emission_map_list[alte_name].append(["atmosphere",unit_name]  + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
+    connection_flow_items = result_db.get_parameter_value_items(parameter_definition_name = "connection_flow")
     analyzed_vehs = ["car","van","bus","truck","aviation","maritime","rail"]
-    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "connection_flow"):
+    for param_map in connection_flow_items:
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
         if scenario_name in latest_alternatives:
@@ -175,14 +190,16 @@ def from_DB_to_df(map_years):
                         map_table = convert_map_to_table(param_map["parsed_value"])
                         index_names = nested_index_names(param_map["parsed_value"])
                         data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])[link_name]
-                        data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                        data.index = pd.to_datetime(data.index.astype("string"))
+   
                         if rps:
                             rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                             data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
+                        yearly_sums = data.groupby(data.index.year).sum()
                         unit_to_node_map[link_name] = link_name.split("__")[1].split("_")[0]
-                        energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = [node_name.split("_")[0],link_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        energy_map_list[alte_name].append([node_name.split("_")[0],link_name]  + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
-    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "connection_flow"):
+    for param_map in connection_flow_items:
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
         if scenario_name in latest_alternatives:
@@ -197,28 +214,31 @@ def from_DB_to_df(map_years):
                             map_table = convert_map_to_table(param_map["parsed_value"])
                             index_names = nested_index_names(param_map["parsed_value"])
                             data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])[link_name]
-                            data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                            data.index = pd.to_datetime(data.index.astype("string"))
+
                             if rps:
                                 rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                                 data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
                             
+                            yearly_sums = data.groupby(data.index.year).sum()
                             if len(node_name.split("_")) > 1:
                                 #print(link_name)
                                 p1 = node_name.split("_")[1]
                                 p2 = [i for i in [link_name.split("_")[0],link_name.split("_")[2]] if i != p1][0]
                                 commodity = link_name.split("_")[1]
                                 #print(p1,p2,commodity)
-                                flows_map[alte_name].loc[flows_map[alte_name].shape[0],:] = [p1,p2,commodity] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                                flows_map_list[alte_name].append([p1,p2,commodity] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                     
                     elif "CH4-geo-formation" in link_name or "salt-cavern" in link_name:
                         map_table = convert_map_to_table(param_map["parsed_value"])
                         index_names = nested_index_names(param_map["parsed_value"])
                         data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])[link_name]
-                        data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                        data.index = pd.to_datetime(data.index.astype("string"))
                         if rps:
                             rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                             data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
-                        flows_sto[alte_name].loc[flows_sto[alte_name].shape[0],:] = [node_name,link_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                        yearly_sums = data.groupby(data.index.year).sum()
+                        flows_sto_list[alte_name].append([node_name,link_name]  + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "demand"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
@@ -231,14 +251,16 @@ def from_DB_to_df(map_years):
                     map_table = convert_map_to_table(param_map["parsed_value"])
                     index_names = nested_index_names(param_map["parsed_value"])
                     data = pd.DataFrame(map_table, columns=index_names + [node_name]).set_index(index_names[0])[node_name]
-                    data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
+                    data.index = pd.to_datetime(data.index.astype("string"))
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
-
+                    
+                    yearly_sums = data.groupby(data.index.year).sum()
                     unit_to_node_map[node_name] = "residual-"+node_name.split("_")[0]
-                    energy_map[alte_name].loc[energy_map[alte_name].shape[0],:] = [node_name.split("_")[0],node_name] + [data[data.index.year==year_i].sum() for year_i in map_years]
+                    energy_map_list[alte_name].append([node_name.split("_")[0],node_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
+    unit_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="unit_capacity")}
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "units_invested_available"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
@@ -251,29 +273,66 @@ def from_DB_to_df(map_years):
                 index_names = nested_index_names(param_map["parsed_value"])
                 data = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])
                 
-                capacity_value = [parameter_i["parsed_value"].values[0] for parameter_i in result_db.get_parameter_value_items(parameter_definition_name = "unit_capacity") if unit_name in parameter_i["entity_byname"]][0]
-                units_cap[alte_name].loc[units_cap[alte_name].shape[0],:] = [unit_name] + (capacity_value*data[unit_name]).to_list()
+                capacity_value = unit_capacity_map[unit_name]
+                units_cap_list[alte_name].append([unit_name] + (capacity_value*data[unit_name]).to_list())
         
                 invested = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "units_invested", entity_byname = param_map["entity_byname"])
                 map_table = convert_map_to_table(invested["parsed_value"])
                 index_names = nested_index_names(invested["parsed_value"])
                 data = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])
                 
-                units_inv[alte_name].loc[units_inv[alte_name].shape[0],:] = [unit_name] + (capacity_value*data[unit_name]).to_list()
+                units_inv_list[alte_name].append([unit_name] + (capacity_value*data[unit_name]).to_list())
                 if data[unit_name].sum() > 0.001:
                     inv_cost = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base",parameter_definition_name = "unit_investment_cost", entity_byname = (unit_name,))
                     if inv_cost:
                         map_table = convert_map_to_table(inv_cost["parsed_value"])
                         index_names = nested_index_names(inv_cost["parsed_value"])
                         data_inv = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])
-                        units_inv_cost[alte_name].loc[units_inv_cost[alte_name].shape[0],:] = [unit_name] + [capacity_value*data.at[i,unit_name]*data_inv.at[(i if i.year != 2040 else pd.Timestamp("2041-01-01")),unit_name] for i in data[unit_name].index]
+                        units_inv_cost_list[alte_name].append([unit_name] + [capacity_value*data.at[i,unit_name]*data_inv.at[(i if i.year != 2040 else pd.Timestamp("2041-01-01")),unit_name] for i in data[unit_name].index])
 
                 decommissioned = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "units_mothballed", entity_byname = param_map["entity_byname"])
                 map_table = convert_map_to_table(decommissioned["parsed_value"])
                 index_names = nested_index_names(decommissioned["parsed_value"])
                 data = pd.DataFrame(map_table, columns=index_names + [unit_name]).set_index(index_names[0])
                 
-                units_dec[alte_name].loc[units_inv[alte_name].shape[0],:] = [unit_name] + (capacity_value*data[unit_name]).to_list()
+                units_dec_list[alte_name].append([unit_name] + (capacity_value*data[unit_name]).to_list())
+
+    sto_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="node_state_cap")}
+    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "storages_invested_available"):
+        scenario_name, timestamp = param_map["alternative_name"].split("@")
+        timestamp = pd.Timestamp(timestamp)
+        if scenario_name in latest_alternatives:
+            if timestamp == latest_alternatives[scenario_name]:
+                alte_name = scenario_name
+                storage_name = param_map["entity_byname"][1]
+                if storage_name != "CO2":
+
+                    map_table = convert_map_to_table(param_map["parsed_value"])
+                    index_names = nested_index_names(param_map["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
+                    
+                    capacity_value = sto_capacity_map[storage_name]
+                    storages_cap_list[alte_name].append([storage_name] + (capacity_value*data[storage_name]).to_list())
+            
+                    invested = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "storages_invested", entity_byname = param_map["entity_byname"])
+                    map_table = convert_map_to_table(invested["parsed_value"])
+                    index_names = nested_index_names(invested["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
+                    storages_inv_list[alte_name].append([storage_name] + (capacity_value*data[storage_name]).to_list())
+                    
+                    if data[storage_name].sum() > 0.001:
+                        inv_cost = sopt_db.get_parameter_value_item(entity_class_name = "node", alternative_name = "Base",parameter_definition_name = "storage_investment_cost", entity_byname = (storage_name,))
+                        if inv_cost:
+                            map_table = convert_map_to_table(inv_cost["parsed_value"])
+                            index_names = nested_index_names(inv_cost["parsed_value"])
+                            data_inv = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
+                            storages_cost_list[alte_name].append([storage_name] + [capacity_value*data.at[i,storage_name]*data_inv.at[(i if i.year != 2040 else pd.Timestamp("2041-01-01")),storage_name] for i in data[storage_name].index])
+
+                    decommissioned = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "storages_decommissioned", entity_byname = param_map["entity_byname"])
+                    map_table = convert_map_to_table(decommissioned["parsed_value"])
+                    index_names = nested_index_names(decommissioned["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
+                    storages_dec_list[alte_name].append([storage_name] + (capacity_value*data[storage_name]).to_list())
 
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "node_state_longterm"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
@@ -284,62 +343,26 @@ def from_DB_to_df(map_years):
 
                 map_table = convert_map_to_table(param_map["parsed_value"])
                 index_names = nested_index_names(param_map["parsed_value"])
-                data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])[storage_name]
+                data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
                 data.index = [pd.Timestamp(i) for i in data.index.astype("string")]
-                node_state[scenario_name] = pd.concat([node_state[scenario_name],data],ignore_index=False)
-            node_state[scenario_name] = node_state[scenario_name].sort_index()
-    return unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, flows_map, flows_sto, node_state
+                node_state_parts[scenario_name].append(data)
 
-def df_to_sankey(energy_df, emission_df, years_map):
- 
-    # Generate Sankey diagram for each scenario
-    for scenario in energy_df.scenario.unique():
-        df =  energy_df[energy_df.scenario == scenario].copy()
-        # Get unique labels
-        labels = pd.unique(df[['source', 'target']].values.ravel())
-        label_indices = {label: idx for idx, label in enumerate(labels)}
-
-        # Map labels to indices
-        df['source_idx'] = df['source'].map(label_indices)
-        df['target_idx'] = df['target'].map(label_indices)
-
-        # Generate maximally distinct colors
-        golden_ratio = (1 + 5**0.5) / 2
-        colors = [f'hsl({int((i * 360 / golden_ratio) % 360)}, 70%, 50%)' for i in range(len(labels))]
-        link_colors = [f'hsla({int((source_idx * 360 / golden_ratio) % 360)}, 70%, 50%, 0.4)' for source_idx in df['source_idx']]
-        
-        for year in list(years_map.values()): 
-            # Create Sankey diagram
-            fig = go.Figure(data=[go.Sankey(node=dict(pad=30,thickness=20,line=dict(color="black", width=0.5),label=labels.tolist(),color=colors),
-                                            link=dict(source=df['source_idx'],target=df['target_idx'],value=df[year],color=link_colors))])
-
-            # Layout and export
-            fig.update_layout(title_text=f"Sankey Diagram - {scenario} - {year}", font_size=10)
-            fig.write_html(f"pictures/sankey_{scenario}_{year}.html")
-
-    for scenario in emission_df.scenario.unique():
-        df =  energy_df[energy_df.scenario == scenario].copy()
-        # Get unique labels
-        labels = pd.unique(df[['source', 'target']].values.ravel())
-        label_indices = {label: idx for idx, label in enumerate(labels)}
-
-        # Map labels to indices
-        df['source_idx'] = df['source'].map(label_indices)
-        df['target_idx'] = df['target'].map(label_indices)
-
-        # Generate maximally distinct colors
-        golden_ratio = (1 + 5**0.5) / 2
-        colors = [f'hsl({int((i * 360 / golden_ratio) % 360)}, 70%, 50%)' for i in range(len(labels))]
-        link_colors = [f'hsla({int((source_idx * 360 / golden_ratio) % 360)}, 70%, 50%, 0.4)' for source_idx in df['source_idx']]
-        
-        for year in list(years_map.values()): 
-            # Create Sankey diagram
-            fig = go.Figure(data=[go.Sankey(node=dict(pad=30,thickness=20,line=dict(color="black", width=0.5),label=labels.tolist(),color=colors),
-                                            link=dict(source=df['source_idx'],target=df['target_idx'],value=df[year],color=link_colors))])
-
-            # Layout and export
-            fig.update_layout(title_text=f"Sankey Diagram - {scenario} - {year}", font_size=10)
-            fig.write_html(f"pictures/sankey_emissions_{scenario}_{year}.html")
+    node_state    = {name: pd.concat(parts,axis=1).sort_index() if parts else pd.DataFrame() for name, parts in node_state_parts.items()}
+    energy_map    = {name:pd.DataFrame(energy_map_list[name],columns=["source","target"]+years) for name in latest_alternatives}
+    flows_map     = {name:pd.DataFrame(flows_map_list[name],columns=["source","target","commodity"]+years) for name in latest_alternatives}
+    flows_sto     = {name:pd.DataFrame(flows_sto_list[name],columns=["source","target"]+years) for name in latest_alternatives}
+    emission_map  = {name:pd.DataFrame(emission_map_list[name],columns=["source","target"]+years) for name in latest_alternatives}
+    unit_to_flows = {name:pd.DataFrame(unit_to_flows_list[name],columns=["unit_name","node"]+years) for name in latest_alternatives}
+    storages_cap  = {name:pd.DataFrame(storages_cap_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
+    storages_inv  = {name:pd.DataFrame(storages_inv_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
+    storages_dec  = {name:pd.DataFrame(storages_dec_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
+    storages_cost = {name:pd.DataFrame(storages_cost_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
+    units_cap     = {name:pd.DataFrame(units_cap_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
+    units_inv     = {name:pd.DataFrame(units_inv_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
+    units_dec     = {name:pd.DataFrame(units_dec_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
+    units_inv_cost= {name:pd.DataFrame(units_inv_cost_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
+    
+    return unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, flows_map, flows_sto, node_state
 
 def get_representative_periods():
 
@@ -394,13 +417,13 @@ def run_streamlit_app(app_path: str):
 
 def clean_storage_flows(energy_map,unit_to_node_map,map_years):
 
-    for storage in storage_node_map:
+    for storage in storage_bi_node_map:
         sto_indexes = energy_map[energy_map["source"] == storage].index
         for sto_i in sto_indexes:
             unit_name_dir1 = energy_map.at[sto_i,"target"]
             unit_name_dir2 = "__".join([unit_name_dir1.split("__")[1],unit_name_dir1.split("__")[0]])
             unit_to_node_map[unit_name_dir2] = storage
-            com_i  = energy_map[(energy_map["source"] == storage_node_map[storage])&(energy_map["target"] == unit_name_dir1)].index[0]
+            com_i  = energy_map[(energy_map["source"] == storage_bi_node_map[storage])&(energy_map["target"] == unit_name_dir1)].index[0]
             energy_map.loc[com_i,"target"] = unit_name_dir2
 
     return energy_map, unit_to_node_map
@@ -409,7 +432,7 @@ def main():
 
     resolution = 1
     map_years = {2030:"y2030",2041:"y2040",2050:"y2050"}
-    unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, flows_map, flows_sto, node_state = copy.deepcopy(from_DB_to_df(map_years))
+    unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, flows_map, flows_sto, node_state = copy.deepcopy(from_DB_to_df(map_years))
 
     node_state = {scenario_map.get(k, k): v for k, v in node_state.items()}
     with open('files_out/node_state.dill', 'wb') as file:
@@ -527,6 +550,62 @@ def main():
     unit2node_flow_df = pd.concat([unit2node_flow_df,unit2node_flow_df_total],ignore_index=True)
     unit2node_flow_df.round(2).to_csv("files_out/unit_to_flows.csv")
 
+    installed_sto_cap = []
+    for alte_name in storages_cap:
+        storages_cap[alte_name]["technology"] = storages_cap[alte_name]["storage_name"].str.split('_', n=1).str[0]
+        storages_cap[alte_name]["node"] = storages_cap[alte_name]["technology"].map(storage_node_map)
+        storages_cap[alte_name] = storages_cap[alte_name][storages_cap[alte_name][list(map_years.values())].sum(axis=1) > 0.001]
+        storages_cap[alte_name]["scenario"] = alte_name
+        installed_sto_cap.append(storages_cap[alte_name])
+    installed_sto_cap_df = pd.concat(installed_sto_cap,axis=0,ignore_index=True)
+    installed_sto_cap_df['polygon'] = installed_sto_cap_df["storage_name"].map(extract_polygon)
+    installed_sto_cap_df["scenario"] = installed_sto_cap_df["scenario"].map(scenario_map)
+    installed_sto_cap_df_total = (installed_sto_cap_df.groupby(["node","technology","scenario"], dropna=False)[["y2030","y2040","y2050"]].sum().reset_index()).assign(polygon="Europe", storage_name="EU_total")
+    installed_sto_cap_df = pd.concat([installed_sto_cap_df,installed_sto_cap_df_total],ignore_index=True)
+    installed_sto_cap_df.round(2).to_csv("files_out/storage_installed_capacity.csv")
+
+    installed_sto_cost = []
+    for alte_name in storages_cost:
+        storages_cost[alte_name]["technology"] = storages_cost[alte_name]["storage_name"].str.split('_', n=1).str[0]
+        storages_cost[alte_name]["node"] = storages_cost[alte_name]["technology"].map(storage_node_map)
+        storages_cost[alte_name] = storages_cost[alte_name][storages_cost[alte_name][list(map_years.values())].sum(axis=1) > 0.001]
+        storages_cost[alte_name]["scenario"] = alte_name
+        installed_sto_cost.append(storages_cost[alte_name])
+    installed_sto_cost_df = pd.concat(installed_sto_cost,axis=0,ignore_index=True)
+    installed_sto_cost_df['polygon'] = installed_sto_cost_df["storage_name"].map(extract_polygon)
+    installed_sto_cost_df["scenario"] = installed_sto_cost_df["scenario"].map(scenario_map)
+    installed_sto_cost_df_total = (installed_sto_cost_df.groupby(["node","technology","scenario"], dropna=False)[["y2030","y2040","y2050"]].sum().reset_index()).assign(polygon="Europe", storage_name="EU_total")
+    installed_sto_cost_df = pd.concat([installed_sto_cost_df,installed_sto_cost_df_total],ignore_index=True)
+    installed_sto_cost_df.round(2).to_csv("files_out/storage_cost_capacity.csv")
+
+    installed_sto_inv = []
+    for alte_name in storages_inv:
+        storages_inv[alte_name]["technology"] = storages_inv[alte_name]["storage_name"].str.split('_', n=1).str[0]
+        storages_inv[alte_name]["node"] = storages_inv[alte_name]["technology"].map(storage_node_map)
+        storages_inv[alte_name] = storages_inv[alte_name][storages_inv[alte_name][list(map_years.values())].sum(axis=1) > 0.001]
+        storages_inv[alte_name]["scenario"] = alte_name
+        installed_sto_inv.append(storages_inv[alte_name])
+    installed_sto_inv_df = pd.concat(installed_sto_inv,axis=0,ignore_index=True)
+    installed_sto_inv_df['polygon'] = installed_sto_inv_df["storage_name"].map(extract_polygon)
+    installed_sto_inv_df["scenario"] = installed_sto_inv_df["scenario"].map(scenario_map)
+    installed_sto_inv_df_total = (installed_sto_inv_df.groupby(["node","technology","scenario"], dropna=False)[["y2030","y2040","y2050"]].sum().reset_index()).assign(polygon="Europe", storage_name="EU_total")
+    installed_sto_inv_df = pd.concat([installed_sto_inv_df,installed_sto_inv_df_total],ignore_index=True)
+    installed_sto_inv_df.round(2).to_csv("files_out/storage_invested_capacity.csv")
+
+    installed_sto_dec = []
+    for alte_name in storages_dec:
+        storages_dec[alte_name]["technology"] = storages_dec[alte_name]["storage_name"].str.split('_', n=1).str[0]
+        storages_dec[alte_name]["node"] = storages_dec[alte_name]["technology"].map(storage_node_map)
+        storages_dec[alte_name] = storages_dec[alte_name][storages_dec[alte_name][list(map_years.values())].sum(axis=1) > 0.001]
+        storages_dec[alte_name]["scenario"] = alte_name
+        installed_sto_dec.append(storages_dec[alte_name])
+    installed_sto_dec_df = pd.concat(installed_sto_dec,axis=0,ignore_index=True)
+    installed_sto_dec_df['polygon'] = installed_sto_dec_df["storage_name"].map(extract_polygon)
+    installed_sto_dec_df["scenario"] = installed_sto_dec_df["scenario"].map(scenario_map)
+    installed_sto_dec_df_total = (installed_sto_dec_df.groupby(["node","technology","scenario"], dropna=False)[["y2030","y2040","y2050"]].sum().reset_index()).assign(polygon="Europe", storage_name="EU_total")
+    installed_sto_dec_df = pd.concat([installed_sto_dec_df,installed_sto_dec_df_total],ignore_index=True)
+    installed_sto_dec_df.round(2).to_csv("files_out/storage_decommissioned_capacity.csv")
+
     flows = []
     for alternative_name in flows_map:
         flows_map[alternative_name]["commodity"] = flows_map[alternative_name]["commodity"].map(node_map)
@@ -550,4 +629,5 @@ def main():
     
 if __name__ == "__main__":
     main()
+    print("Time spent organizing the results ",time_lib.time() - start_time)
     # run_streamlit_app("app.py")

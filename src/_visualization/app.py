@@ -84,9 +84,14 @@ def load_all_data():
     crossborder_flows = load_csv("files_out/crossborder_flows.csv")
     emissions_flows = load_csv("files_out/emissions_flows.csv")
     storage_dict = load_storage_dict("files_out/node_state.dill")
+    storage_installed = load_csv("files_out/storage_installed_capacity.csv")
+    storage_invested = load_csv("files_out/storage_invested_capacity.csv")
+    storage_cost = load_csv("files_out/storage_cost_capacity.csv")
+    storage_decommissioned = load_csv("files_out/storage_decommissioned_capacity.csv")
     
     return (installed, invested, invested_cost, decommissioned, unit_to_flows, 
-            energy_flows, crossborder_flows, emissions_flows, storage_dict)
+            energy_flows, crossborder_flows, emissions_flows, storage_dict,
+            storage_installed, storage_invested, storage_cost, storage_decommissioned)
 
 # ----------------------
 # Helper: Melt wide to long
@@ -131,8 +136,37 @@ def preprocess_data(installed, invested, invested_cost, decommissioned, unit_to_
     return merged
 
 # ----------------------
-# CACHED: Create color map
+# CACHED: Preprocess storage data
 # ----------------------
+@st.cache_data
+def preprocess_storage_data(storage_installed, storage_invested, storage_cost, storage_decommissioned, id_vars):
+    installed_m = melt_df(storage_installed, "Installed", id_vars)
+    invested_m = melt_df(storage_invested, "Invested", id_vars)
+    cost_m = melt_df(storage_cost, "Invested_Cost", id_vars)
+    decom_m = melt_df(storage_decommissioned, "Decommissioned", id_vars)
+
+    merged = installed_m.merge(invested_m, on=id_vars + ["year"], how="outer").merge(
+        decom_m, on=id_vars + ["year"], how="outer"
+    ).merge(cost_m, on=id_vars + ["year"], how="outer")
+
+    merged["year"] = merged["year"].str.extract(r"(\d+)")
+    merged = merged.dropna(subset=["year"]).copy()
+    merged["year"] = merged["year"].astype(int)
+
+    for col in ["technology", "polygon", "node", "scenario"]:
+        if col in merged.columns:
+            merged[col] = merged[col].astype(str).str.strip()
+    if "technology" in merged.columns:
+        merged["technology"] = merged["technology"].replace({"nan": "Unknown"})
+
+    merged["Installed"] = merged["Installed"] / 1
+    merged["Invested"] = merged["Invested"] / 1
+    merged["Invested_Cost"] = merged["Invested_Cost"] / 1e3
+    merged["Decommissioned"] = merged["Decommissioned"] / 1
+
+    return merged
+
+
 @st.cache_data
 def create_color_map(technologies):
     return {tech: assign_color_by_technology(tech) for tech in technologies}
@@ -289,10 +323,15 @@ def main():
 
     # CACHED: Load all data once
     (installed, invested, invested_cost, decommissioned, unit_to_flows, 
-     energy_flows, crossborder_flows, emissions_flows, storage_dict) = load_all_data()
+     energy_flows, crossborder_flows, emissions_flows, storage_dict,
+     storage_installed, storage_invested, storage_cost, storage_decommissioned) = load_all_data()
 
     # CACHED: Preprocess data once
     merged = preprocess_data(installed, invested, invested_cost, decommissioned, unit_to_flows, ID_VARS)
+
+    # CACHED: Preprocess storage capacity data
+    storage_id_vars = [c for c in ID_VARS if c in storage_installed.columns]
+    merged_storage = preprocess_storage_data(storage_installed, storage_invested, storage_cost, storage_decommissioned, storage_id_vars)
 
     # breakpoint()
     # Extract metadata
@@ -306,21 +345,34 @@ def main():
 
     # CACHED: Create color map once
     color_map = create_color_map(TECH_ORDER)
+
+    # Storage metadata
+    s_scenarios = sorted(merged_storage["scenario"].dropna().unique()) if "scenario" in merged_storage.columns else scenarios
+    s_countries = sorted(merged_storage["polygon"].dropna().unique()) if "polygon" in merged_storage.columns else countries
+    s_nodes = sorted(merged_storage["node"].dropna().unique()) if "node" in merged_storage.columns else nodes
+    S_TECH_ORDER = sorted(merged_storage["technology"].dropna().unique()) if "technology" in merged_storage.columns else TECH_ORDER
+    s_color_map = create_color_map(S_TECH_ORDER)
     
     height_value = 700
 
     st.header("European Model Statistics")
     scenario = st.selectbox("Scenario", scenarios)
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "📊 Installed Capacity", 
-        "🔄 Energy Production", 
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+        # Units
+        "📊 Installed Capacity",
+        "🔄 Energy Production",
         "📈 Invested vs Decommissioned",
         "💰 CAPEX",
         "🗺️ Capacity Map",
+        # Storage
         "🔋 Storage Analysis",
+        "📊 Storage Installed Capacity",
+        "📈 Storage Invested vs Decommissioned",
+        "💰 Storage Investment Cost",
+        # Flows
         "🌊 Sankey Diagrams",
-        "🗺️ Flow Map"
+        "🗺️ Flow Map",
     ])
 
     # ----------------------
@@ -592,8 +644,8 @@ def main():
     # -------------------------------
     # Sankey Diagrams
     # -------------------------------
-    with tab7:
-        st.header("Sankey Diagrams")
+    with tab10:
+        st.header("Sankey Diagrams")  # noqa
 
         col1, col2= st.columns(2)
         with col1: 
@@ -626,8 +678,8 @@ def main():
     # -------------------------------------------------
     # Flow Map (Cross-border flows)
     # -------------------------------------------------
-    with tab8:
-        st.header("Flow Map (Cross-border)")
+    with tab11:
+        st.header("Flow Map (Cross-border)")  # noqa
         POLY_COL = "id"
         geojson_obj, gdf_base = load_geodata("config/onshore_PECD1.geojson", POLY_COL)
         if crossborder_flows.empty: st.info("No cross-border flow data loaded."); st.stop()
@@ -724,6 +776,172 @@ def main():
 
         st.plotly_chart(fig, width="stretch")
         download_plot(fig, f"flow_map_{selected_commodity}_colormap_abs_labels")
+
+
+    # ----------------------
+    # Plot 9: Storage Installed Capacity
+    # ----------------------
+    with tab7:
+        st.header("Storage Installed Capacity")
+        col1, col2 = st.columns(2)
+        with col1:
+            s_sel_countries_inst = st.multiselect("Countries", s_countries, default=s_countries, key="s_installed_countries")
+        with col2:
+            s_sel_node_inst = st.selectbox("Node", s_nodes, key="s_installed_nodes") if s_nodes else None
+        filtered_s = merged_storage[
+            (merged_storage["scenario"] == scenario) &
+            (merged_storage["polygon"].isin(s_sel_countries_inst))
+        ].copy()
+        if s_sel_node_inst and "node" in filtered_s.columns:
+            filtered_s = filtered_s[filtered_s["node"] == s_sel_node_inst]
+        if filtered_s.empty:
+            st.info("No data for the selected filters.")
+        else:
+            df_s = filtered_s.rename(columns={"Installed": "Capacity (GWh)"}).copy()
+            df_s["year"] = df_s["year"].astype(int)
+            present_tech_s = df_s.loc[df_s["Capacity (GWh)"] > 0.001, "technology"].dropna().unique().tolist() if "technology" in df_s.columns else []
+            if not present_tech_s:
+                st.info("No technologies with installed capacity for the selected filters.")
+            else:
+                S_TECH_ORDER_NODE = [t for t in S_TECH_ORDER if t in present_tech_s]
+                df_s["technology"] = pd.Categorical(df_s["technology"], categories=S_TECH_ORDER_NODE, ordered=True)
+                S_POLY_ORDER = sorted(df_s["polygon"].dropna().unique(), key=lambda x: (x != "Europe", x))
+                full_idx_s = pd.MultiIndex.from_product([S_POLY_ORDER, S_TECH_ORDER_NODE, YEAR_ORDER], names=["polygon", "technology", "year"])
+                agg_s = (df_s.pivot_table(index=["polygon", "technology", "year"], values="Capacity (GWh)", aggfunc="sum", observed=False)
+                         .reindex(full_idx_s, fill_value=0).reset_index())
+                agg_s["polygon"] = pd.Categorical(agg_s["polygon"], categories=S_POLY_ORDER, ordered=True)
+                agg_s["technology"] = pd.Categorical(agg_s["technology"], categories=S_TECH_ORDER_NODE, ordered=True)
+                agg_s["year"] = pd.Categorical(agg_s["year"], categories=YEAR_ORDER, ordered=True)
+                agg_s["anim_id"] = agg_s["polygon"].astype(str) + " | " + agg_s["technology"].astype(str)
+                fig_s_inst = px.bar(agg_s, x="polygon", y="Capacity (GWh)", color="technology",
+                                    animation_frame="year", animation_group="anim_id",
+                                    color_discrete_map=s_color_map, barmode="stack",
+                                    category_orders={"polygon": S_POLY_ORDER, "technology": S_TECH_ORDER_NODE, "year": YEAR_ORDER},
+                                    title=f"Storage Installed Capacity by Country ({scenario})")
+                fig_s_inst.update_layout(height=height_value, bargap=0.15, template="plotly_white",
+                                         legend_title_text="Technology", yaxis_title="Capacity (GWh)")
+                year_totals_s = agg_s.pivot_table(index=["year", "polygon"], values="Capacity (GWh)", aggfunc="sum", observed=False)
+                year_max_s = year_totals_s.groupby("year", observed=False).max()
+                for frame in fig_s_inst.frames:
+                    year_val = int(frame.name)
+                    y_max_v = year_max_s.loc[year_val, "Capacity (GWh)"]
+                    frame.layout.update(yaxis={"range": [0, y_max_v * 1.05]})
+                for slider_step, frame in zip(fig_s_inst.layout.sliders[0].steps, fig_s_inst.frames):
+                    slider_step["args"][1]["frame"]["redraw"] = True
+                st.plotly_chart(fig_s_inst, width="stretch")
+                download_plot(fig_s_inst, "storage_installed_capacity")
+
+    # ----------------------
+    # Plot 10: Storage Invested Capacity
+    # ----------------------
+    with tab8:
+        st.header("Storage Invested vs Decommissioned (by Technology)")
+        col1, col2 = st.columns(2)
+        with col1:
+            s_sel_countries_inv = st.multiselect("Countries", s_countries, default=s_countries, key="s_invested_countries")
+        with col2:
+            s_sel_node_inv = st.selectbox("Node", s_nodes, key="s_invested_nodes") if s_nodes else None
+        filtered_s2 = merged_storage[
+            (merged_storage["scenario"] == scenario) &
+            (merged_storage["polygon"].isin(s_sel_countries_inv))
+        ].copy()
+        if s_sel_node_inv and "node" in filtered_s2.columns:
+            filtered_s2 = filtered_s2[filtered_s2["node"] == s_sel_node_inv]
+        if filtered_s2.empty:
+            st.info("No data for the selected filters.")
+        else:
+            df_s2 = filtered_s2[["polygon", "technology", "year", "Invested", "Decommissioned"]].copy()
+            df_s2["year"] = df_s2["year"].astype(int)
+            present_tech_s2 = df_s2.loc[(df_s2["Invested"] > 0.001) | (df_s2["Decommissioned"] > 0.001), "technology"].dropna().unique().tolist()
+            if not present_tech_s2:
+                st.info("No technologies with invested/decommissioned capacity for the selected filters.")
+            else:
+                S_TECH_ORDER_NODE2 = [t for t in S_TECH_ORDER if t in present_tech_s2]
+                df_s2["technology"] = pd.Categorical(df_s2["technology"], categories=S_TECH_ORDER_NODE2, ordered=True)
+                S_POLY_ORDER2 = sorted(df_s2["polygon"].dropna().unique(), key=lambda x: (x != "Europe", x))
+                full_idx_s2 = pd.MultiIndex.from_product([S_POLY_ORDER2, S_TECH_ORDER_NODE2, YEAR_ORDER], names=["polygon", "technology", "year"])
+                inv_s = (df_s2.pivot_table(index=["polygon", "technology", "year"], values="Invested", aggfunc="sum", observed=False)
+                         .reindex(full_idx_s2, fill_value=0).reset_index().rename(columns={"Invested": "Value"}).assign(kind="Invested"))
+                dec_s = (df_s2.pivot_table(index=["polygon", "technology", "year"], values="Decommissioned", aggfunc="sum", observed=False)
+                         .reindex(full_idx_s2, fill_value=0).reset_index().rename(columns={"Decommissioned": "Value"}).assign(kind="Decommissioned"))
+                dec_s["Value"] = -dec_s["Value"]
+                combined_s = pd.concat([inv_s, dec_s], ignore_index=True)
+                combined_s["polygon"] = pd.Categorical(combined_s["polygon"], categories=S_POLY_ORDER2, ordered=True)
+                combined_s["technology"] = pd.Categorical(combined_s["technology"], categories=S_TECH_ORDER_NODE2, ordered=True)
+                combined_s["year"] = pd.Categorical(combined_s["year"], categories=YEAR_ORDER, ordered=True)
+                combined_s["anim_id"] = combined_s["polygon"].astype(str) + " | " + combined_s["technology"].astype(str)
+                fig_s_inv = px.bar(combined_s, x="polygon", y="Value", color="technology",
+                                   animation_frame="year", animation_group="anim_id",
+                                   barmode="relative", pattern_shape="kind",
+                                   color_discrete_map=s_color_map,
+                                   category_orders={"polygon": S_POLY_ORDER2, "technology": S_TECH_ORDER_NODE2, "year": YEAR_ORDER},
+                                   title=f"Storage Invested (+) vs Decommissioned (–) by Country ({scenario})")
+                fig_s_inv.update_layout(template="plotly_white", height=height_value, bargap=0.20,
+                                        legend_title_text="Technology", yaxis_title="Capacity (GWh)", xaxis_title="Country")
+                year_ranges_s = []
+                for year_val in YEAR_ORDER:
+                    year_data_s = combined_s[combined_s["year"] == year_val].copy()
+                    pos_s = year_data_s[year_data_s["Value"] > 0].pivot_table(index="polygon", values="Value", aggfunc="sum", observed=False).fillna(0)
+                    neg_s = year_data_s[year_data_s["Value"] < 0].pivot_table(index="polygon", values="Value", aggfunc="sum", observed=False).fillna(0)
+                    y_max_s = pos_s["Value"].max() if len(pos_s) > 0 else 0
+                    y_min_s = neg_s["Value"].min() if len(neg_s) > 0 else 0
+                    year_ranges_s.append((year_val, y_min_s, y_max_s))
+                year_ranges_dict_s = {yr: (mn, mx) for yr, mn, mx in year_ranges_s}
+                for frame in fig_s_inv.frames:
+                    year_val = int(frame.name)
+                    y_min_v, y_max_v = year_ranges_dict_s[year_val]
+                    y_range_v = y_max_v - y_min_v
+                    y_padding_v = max(y_range_v * 0.05, 0.1)
+                    frame.layout.update(yaxis={"range": [y_min_v - y_padding_v, y_max_v + y_padding_v], "autorange": False})
+                for slider_step, frame in zip(fig_s_inv.layout.sliders[0].steps, fig_s_inv.frames):
+                    slider_step["args"][1]["frame"]["redraw"] = True
+                st.plotly_chart(fig_s_inv, width="stretch")
+                download_plot(fig_s_inv, "storage_invested_decommissioned")
+
+    # ----------------------
+    # Plot 9: Storage Investment Cost
+    # ----------------------
+    with tab9:
+        st.header("Storage Investment Cost")
+        col1, col2 = st.columns(2)
+        with col1:
+            s_sel_countries_cost = st.multiselect("Countries", s_countries, default=s_countries, key="s_cost_countries")
+        with col2:
+            s_sel_node_cost = st.selectbox("Node", s_nodes, key="s_cost_nodes") if s_nodes else None
+        filtered_s4 = merged_storage[
+            (merged_storage["scenario"] == scenario) &
+            (merged_storage["polygon"].isin(s_sel_countries_cost))
+        ].copy()
+        if s_sel_node_cost and "node" in filtered_s4.columns:
+            filtered_s4 = filtered_s4[filtered_s4["node"] == s_sel_node_cost]
+        if filtered_s4.empty:
+            st.info("No data for the selected filters.")
+        else:
+            df_s4 = filtered_s4.rename(columns={"Invested_Cost": "Investment Cost (B€)"}).copy()
+            df_s4["year"] = df_s4["year"].astype(int)
+            present_tech_s4 = df_s4.loc[df_s4["Investment Cost (B€)"] > 0.001, "technology"].dropna().unique().tolist() if "technology" in df_s4.columns else []
+            if not present_tech_s4:
+                st.info("No technologies with investment cost for the selected filters.")
+            else:
+                S_TECH_ORDER_NODE4 = [t for t in S_TECH_ORDER if t in present_tech_s4]
+                df_s4["technology"] = pd.Categorical(df_s4["technology"], categories=S_TECH_ORDER_NODE4, ordered=True)
+                S_POLY_ORDER4 = sorted(df_s4["polygon"].dropna().unique(), key=lambda x: (x != "Europe", x))
+                full_idx_s4 = pd.MultiIndex.from_product([S_POLY_ORDER4, S_TECH_ORDER_NODE4], names=["polygon", "technology"])
+                agg_s4 = (df_s4.pivot_table(index=["polygon", "technology"], values="Investment Cost (B€)", aggfunc="sum", observed=False)
+                          .reindex(full_idx_s4, fill_value=0.0).reset_index())
+                fig_s_cost = px.bar(agg_s4, x="polygon", y="Investment Cost (B€)", color="technology",
+                                    color_discrete_map=s_color_map, barmode="stack",
+                                    category_orders={"polygon": S_POLY_ORDER4, "technology": S_TECH_ORDER_NODE4},
+                                    title=f"Storage Investment Cost from 2030 to 2060 by Country ({scenario})")
+                fig_s_cost.update_layout(height=height_value, bargap=0.15, template="plotly_white",
+                                         legend_title_text="Technology", yaxis_title="Investment Cost (B€)")
+                y_max_cost = agg_s4.groupby("polygon", observed=False)["Investment Cost (B€)"].sum().max()
+                if pd.isna(y_max_cost):
+                    y_max_cost = 0
+                y_pad_cost = y_max_cost * 0.05 if y_max_cost > 0 else 1.0
+                fig_s_cost.update_yaxes(range=[0, y_max_cost + y_pad_cost])
+                st.plotly_chart(fig_s_cost, width="stretch")
+                download_plot(fig_s_cost, "storage_investment_cost")
 
 
 if __name__ == "__main__":
