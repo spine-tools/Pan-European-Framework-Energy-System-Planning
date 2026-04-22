@@ -26,12 +26,12 @@ import dill
 import time as time_lib
 
 start_time = time_lib.time()
-url_results = sys.argv[1]
+url_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_model\.spinetoolbox\items\investment_results\Investment_Results.sqlite" #sys.argv[1]
 result_db = DatabaseMapping(url_results)
 result_db.fetch_all()
 
 if len(sys.argv) > 2:
-    sopt_results = sys.argv[2]
+    sopt_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_model\.spinetoolbox\items\final_spineopt_model\Final_SpineOpt_Model.sqlite" # sys.argv[2]
     sopt_db = DatabaseMapping(sopt_results)
     sopt_db.fetch_all()
 else:
@@ -59,7 +59,7 @@ def extract_polygon(unit_name: str):
     if not isinstance(unit_name, str):
         return None
     part = unit_name.rsplit('_', 1)[-1][-2:]
-    return part or None
+    return (part if part!="on" else "Europe") or None
 
 def apply_unit_name(unit_name: str):
     new_name = None
@@ -117,7 +117,7 @@ def from_DB_to_df(map_years):
     units_inv_cost_list= {name:[] for name in latest_alternatives}
     node_state_parts   = {name:[] for name in latest_alternatives}
 
-    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "unit_flow"):
+    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "unit_flow"):        
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
         if scenario_name in latest_alternatives:
@@ -440,6 +440,7 @@ def main():
 
     energy_list   = []
     emission_list = []
+
     for alternative_name in energy_map:
         energy_map[alternative_name]["polygon"] = energy_map[alternative_name]["target"].map(extract_polygon)
         energy_map[alternative_name], unit_to_node_map = clean_storage_flows(energy_map[alternative_name],unit_to_node_map, map_years)

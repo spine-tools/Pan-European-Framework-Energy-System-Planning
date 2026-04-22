@@ -84,3 +84,4 @@ int-maritime: transport
 rail: transport
 thermal-rail: transport
 atmosphere: emission
+CO2-storage: CO2-sink

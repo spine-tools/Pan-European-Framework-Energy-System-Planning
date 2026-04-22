@@ -9,3 +9,5 @@ CH4-geo-formation: CH4
 reservoir: hydro
 PH-reservoir: elec
 biomass-stock: biomass
+atmosphere: atmosphere
+CO2-storage: CO2-sink

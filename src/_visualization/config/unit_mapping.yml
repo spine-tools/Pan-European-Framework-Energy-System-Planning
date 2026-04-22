@@ -4,13 +4,15 @@ wind-off: Offshore Wind
 solar-PV: Solar
 bioST: Biomass Steam Turbine
 nuclear: Nuclear
-SCPC: Coal PP
-CCGT: Gas Turbine
+SCPC: Coal Power Plant
+CCGT+CC: Combined-cycle Gas Turbine w/CC
+CCGT: Combined-cycle Gas Turbine
+OCGT: Open-cycle Gas Turbine
 wasteST: Waste Steam Turbine
 oil-eng: Diesel Group
 hydro-turbine: Hydro Turbine
 RoR: Run-of-River
-PH-discharge: Hydro Turbine
+PH-discharge: Pump Hydro
 battery-storage: Battery Charger
 # heat
 oil-boiler: Diesel Boiler
@@ -24,6 +26,7 @@ electric-heating: Electric Heater
 PEM: Electrolyzer
 SMR: Steam Methane Reforming
 REF-SMR: Refinery
+REF(H2): Refinery
 (BM)FT: Biofuel Production
 (H2)FT-DC: Synfuel Production
 (COEL)FT-MEA: Synfuel Production
@@ -33,3 +36,4 @@ gas-extraction: Gas Extractions
 bio-diges-up: Bio-digestion and Upgrading
 methanation: Methanation
 (H2)MeOH-DC: Syn-production of Methanol
+(BM)MeOH: Bio-production of Methanol

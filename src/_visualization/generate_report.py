@@ -767,7 +767,7 @@ def main():
         plot_storage(pdf, storage_dict, year_order)
         # ── 9. Sankey ─────────────────────────────────────────────────────────
         print("[9/11] Section 9: Sankey Diagrams  (Plotly → PNG, uno por año) ...")
-        plot_sankey(pdf, energy_flows, crossborder, emissions, scenarios, year_order)
+        # plot_sankey(pdf, energy_flows, crossborder, emissions, scenarios, year_order)
         # ── 10. Flow Maps ─────────────────────────────────────────────────────
         print("[10/11] Section 10: Cross-border Flow Maps (geopandas) ...")
         plot_flow_maps(pdf, crossborder, scenarios, year_order, geo_path=args.geo)

@@ -5,3 +5,91 @@ resolution: "1h"
 # configurable cyclic condition, storage options: battery-storage-iron-air,batter-storage,truck-DR,bus-DR,van-DR,car-DR
 long-term-storage: [battery-storage-iron-air]
 short-term-storage: [battery-storage,PH-reservoir,truck-DR,bus-DR,van-DR,car-DR]
+green_H2_efuels: True # Choose if efuels consume green H2 from electricity or blue too
+onshore_potentials: 0.10 # percentage of available onshore potentials for wind and solar. 
+no_investable_2030:
+  # Here we define the technologies that cannot be built by 2030 so then they cannot be investable in that year since there is no enough time for the construction.
+  unit:
+    - nuclear-3
+    #- wind-on-SP199-HH100
+    #- wind-off-FB-SP370-HH155
+    #- wind-off-FO-SP370-HH155
+    - SCPC
+    - SCPC+CC
+    - waste-ST
+    - SMR
+    - SMR+CC
+    - (BM)MeOH
+    - (COEL)MeOH-MEA
+    - (H2)MeOH-DC
+    - DAC
+  connection:
+    - H2
+    - elec
+  node:
+    - salt-cavern
+
+ramping:
+  nuclear-3: 
+    - elec
+    - 0.07
+  CCGT: 
+    - elec
+    - 0.4
+  SCPC: 
+    - elec
+    - 0.15
+  (BM)FT:
+    - HC
+    - 0.08
+  (COEL)FT-MEA:
+    - HC 
+    - 0.1
+  (H2)FT-DC:
+    - HC
+    - 0.1
+  REF-SMR:
+    - HC 
+    - 0.002
+  REF-SMR-MEA:
+    - HC 
+    - 0.002
+  REF(H2):
+    - HC 
+    - 0.002
+  methanation:
+    - CH4
+    - 0.1
+  bio-diges-up:
+    - CH4
+    - 0.0008
+  SMR:
+    - H2
+    - 0.02
+  LNG-terminal:
+    - CH4
+    - 0.2
+  gas-extraction:
+    - CH4
+    - 0.05
+
+refineries:
+  fossil:
+    techs:
+      - REF-SMR
+      - REF-SMR-MEA
+      - REF(H2)
+  bio:
+    share_2030: 0.10
+    share_2040: 0.25
+    share_2050: 0.25
+    techs:
+      - (BM)FT
+  syn:
+    share_2030: 0.02
+    share_2040: 0.20
+    share_2050: 0.60
+    techs:
+      - (COEL)FT-MEA
+      - (H2)FT-DC
+
