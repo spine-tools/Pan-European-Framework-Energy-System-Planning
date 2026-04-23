@@ -6,6 +6,7 @@ resolution: "1h"
 long-term-storage: [battery-storage-iron-air]
 short-term-storage: [battery-storage,PH-reservoir,truck-DR,bus-DR,van-DR,car-DR]
 green_H2_efuels: True # Choose if efuels consume green H2 from electricity or blue too
+include_onshore_potential_limitations: True
 onshore_potentials: 0.10 # percentage of available onshore potentials for wind and solar. 
 no_investable_2030:
   # Here we define the technologies that cannot be built by 2030 so then they cannot be investable in that year since there is no enough time for the construction.
@@ -28,7 +29,7 @@ no_investable_2030:
     - elec
   node:
     - salt-cavern
-
+include_ramping: False
 ramping:
   nuclear-3: 
     - elec
@@ -72,7 +73,7 @@ ramping:
   gas-extraction:
     - CH4
     - 0.05
-
+include_refinery_trajectory: True
 refineries:
   fossil:
     techs:

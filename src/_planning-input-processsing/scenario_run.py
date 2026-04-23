@@ -181,78 +181,85 @@ def fix_no_investable_by_2030(config):
 
 def ramping_constraints(config):
 
-    with DatabaseMapping(url_spineopt) as sopt_db:
-        entities = [entity_i for entity_i in sopt_db.get_entity_items(entity_class_name = "unit__to_node") if any(tech in entity_i["entity_byname"][0] for tech in config["ramping"])]
-        for entity in entities:
-            for tech in config["ramping"]:
-                if tech in entity["entity_byname"][0] and config["ramping"][tech][0] in entity["entity_byname"][1]:
-                    ramp_value = config["ramping"][tech][1]
-                    add_or_update_parameter_value(sopt_db,"unit__to_node","ramp_up_limit","Base",entity["entity_byname"],ramp_value)
-                    add_or_update_parameter_value(sopt_db,"unit__to_node","ramp_down_limit","Base",entity["entity_byname"],ramp_value)
-                    add_or_update_parameter_value(sopt_db,"unit__to_node","start_up_limit","Base",entity["entity_byname"],ramp_value)
-                    add_or_update_parameter_value(sopt_db,"unit__to_node","shut_down_limit","Base",entity["entity_byname"],ramp_value)
-                    break
+    if config["include_ramping"]:
+        print("Ramping constraints included")
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            entities = [entity_i for entity_i in sopt_db.get_entity_items(entity_class_name = "unit__to_node") if any(tech in entity_i["entity_byname"][0] for tech in config["ramping"])]
+            for entity in entities:
+                for tech in config["ramping"]:
+                    if tech in entity["entity_byname"][0] and config["ramping"][tech][0] in entity["entity_byname"][1]:
+                        ramp_value = config["ramping"][tech][1]
+                        add_or_update_parameter_value(sopt_db,"unit__to_node","ramp_up_limit","Base",entity["entity_byname"],ramp_value)
+                        add_or_update_parameter_value(sopt_db,"unit__to_node","ramp_down_limit","Base",entity["entity_byname"],ramp_value)
+                        add_or_update_parameter_value(sopt_db,"unit__to_node","start_up_limit","Base",entity["entity_byname"],ramp_value)
+                        add_or_update_parameter_value(sopt_db,"unit__to_node","shut_down_limit","Base",entity["entity_byname"],ramp_value)
+                        break
 
-        try:
-            sopt_db.commit_session("ramping constraints")
-        except:
-            print("###################################################################### ramping constraints commit error")  
+            try:
+                sopt_db.commit_session("ramping constraints")
+            except:
+                print("###################################################################### ramping constraints commit error")  
         
 def refinery_constraints(config):
-    with DatabaseMapping(url_spineopt) as sopt_db:
-        list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]    
-        entities = {type_:[entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "unit") if any(tech in entity_i["name"] for tech in config["refineries"][type_]["techs"])] for type_ in config["refineries"]}
-        all_rps  = sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps")
-        for type_ in ["bio","syn"]:
-            add_entity(sopt_db,"investment_group",(f"{type_}fuels",))
-            
-            coefficient_2030 = config["refineries"][type_]["share_2030"]
-            coefficient_2040 = config["refineries"][type_]["share_2040"]
-            coefficient_2050 = config["refineries"][type_]["share_2050"]
-            refinery_cap = 0
-            for tech in entities["fossil"]:
-                initial_cap = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base", parameter_definition_name = "initial_units_invested_available", entity_byname = (tech,))
-                if initial_cap:
-                    refinery_cap += initial_cap["parsed_value"]
-            for tech in entities[type_]:
-                add_entity(sopt_db,"unit__investment_group",(tech,f"{type_}fuels"))
 
-            index_ = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
-            value_ = [coefficient_2030*refinery_cap,coefficient_2040*refinery_cap,coefficient_2050*refinery_cap,coefficient_2050*refinery_cap]
-            parameter_value = {"type":"time_series","data":dict(zip(index_,value_))}
-            add_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",(f"{type_}fuels",),parameter_value)
+    if config["include_refinery_trajectory"]:
+        print("you are modeling imposed refinery trajectory")
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]    
+            entities = {type_:[entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "unit") if any(tech in entity_i["name"] for tech in config["refineries"][type_]["techs"])] for type_ in config["refineries"]}
+            all_rps  = sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps")
+            for type_ in ["bio","syn"]:
+                add_entity(sopt_db,"investment_group",(f"{type_}fuels",))
+                
+                coefficient_2030 = config["refineries"][type_]["share_2030"]
+                coefficient_2040 = config["refineries"][type_]["share_2040"]
+                coefficient_2050 = config["refineries"][type_]["share_2050"]
+                refinery_cap = 0
+                for tech in entities["fossil"]:
+                    initial_cap = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base", parameter_definition_name = "initial_units_invested_available", entity_byname = (tech,))
+                    if initial_cap:
+                        refinery_cap += initial_cap["parsed_value"]
+                for tech in entities[type_]:
+                    add_entity(sopt_db,"unit__investment_group",(tech,f"{type_}fuels"))
 
-        for entity_HC in [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name="node") if "HC_" in entity_i["name"]]:
-            add_entity(sopt_db,"node",(f"bunker-{entity_HC}",))
-            add_parameter_value(sopt_db,"node","has_state","Base",(f"bunker-{entity_HC}",),True)
-            add_parameter_value(sopt_db,"node","is_longterm_storage","Base",(f"bunker-{entity_HC}",),True)
-            for tb in list_otb:
-                add_entity(sopt_db,"node__temporal_block",(f"bunker-{entity_HC}",tb))
-                add_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(f"bunker-{entity_HC}",tb),True)
-            if all_rps:
-                add_entity(sopt_db,"node__temporal_block",(f"bunker-{entity_HC}","all_rps"))
-            add_entity(sopt_db,"connection",(f"bunker-connection-{entity_HC}",))
-            add_parameter_value(sopt_db,"connection","connection_type","Base",(f"bunker-connection-{entity_HC}",),"connection_type_lossless_bidirectional")
-            add_entity(sopt_db,"connection__from_node",(f"bunker-connection-{entity_HC}",entity_HC))
-            add_entity(sopt_db,"connection__to_node",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}"))
-            add_entity(sopt_db,"connection__node__node",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}",entity_HC))
-            add_parameter_value(sopt_db,"connection__node__node","fix_ratio_out_in_connection_flow","Base",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}",entity_HC),1.0)
+                index_ = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
+                value_ = [coefficient_2030*refinery_cap,coefficient_2040*refinery_cap,coefficient_2050*refinery_cap,coefficient_2050*refinery_cap]
+                parameter_value = {"type":"time_series","data":dict(zip(index_,value_))}
+                add_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",(f"{type_}fuels",),parameter_value)
 
-        try:
-            sopt_db.commit_session("refinery constraints")
-        except:
-            print("###################################################################### refinery constraints commit error")  
+            for entity_HC in [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name="node") if "HC_" in entity_i["name"]]:
+                add_entity(sopt_db,"node",(f"bunker-{entity_HC}",))
+                add_parameter_value(sopt_db,"node","has_state","Base",(f"bunker-{entity_HC}",),True)
+                add_parameter_value(sopt_db,"node","is_longterm_storage","Base",(f"bunker-{entity_HC}",),True)
+                for tb in list_otb:
+                    add_entity(sopt_db,"node__temporal_block",(f"bunker-{entity_HC}",tb))
+                    add_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(f"bunker-{entity_HC}",tb),True)
+                if all_rps:
+                    add_entity(sopt_db,"node__temporal_block",(f"bunker-{entity_HC}","all_rps"))
+                add_entity(sopt_db,"connection",(f"bunker-connection-{entity_HC}",))
+                add_parameter_value(sopt_db,"connection","connection_type","Base",(f"bunker-connection-{entity_HC}",),"connection_type_lossless_bidirectional")
+                add_entity(sopt_db,"connection__from_node",(f"bunker-connection-{entity_HC}",entity_HC))
+                add_entity(sopt_db,"connection__to_node",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}"))
+                add_entity(sopt_db,"connection__node__node",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}",entity_HC))
+                add_parameter_value(sopt_db,"connection__node__node","fix_ratio_out_in_connection_flow","Base",(f"bunker-connection-{entity_HC}",f"bunker-{entity_HC}",entity_HC),1.0)
+
+            try:
+                sopt_db.commit_session("refinery constraints")
+            except:
+                print("###################################################################### refinery constraints commit error")  
 
 def onshore_potentials(config):
 
-    with DatabaseMapping(url_spineopt) as sopt_db:
-        maximum_entities = [parameter_map  for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "maximum_entities_invested_available") if "wind-on" in parameter_map["entity_byname"][0] or "solar-PV" in parameter_map["entity_byname"][0]]
-        for max_entity in maximum_entities:
-            add_or_update_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",max_entity["entity_byname"],max_entity["parsed_value"]*config["onshore_potentials"])
-        try:
-            sopt_db.commit_session("vre onshore potentials update")
-        except:
-            print("###################################################################### vre onshore potentials update commit error")  
+    if config["include_onshore_potential_limitations"]:
+        print("WARNING: If you haven't reset the model, you are reducing the VRE potentials once again.")
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            maximum_entities = [parameter_map  for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "maximum_entities_invested_available") if "wind-on" in parameter_map["entity_byname"][0] or "solar-PV" in parameter_map["entity_byname"][0]]
+            for max_entity in maximum_entities:
+                add_or_update_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",max_entity["entity_byname"],max_entity["parsed_value"]*config["onshore_potentials"])
+            try:
+                sopt_db.commit_session("vre onshore potentials update")
+            except:
+                print("###################################################################### vre onshore potentials update commit error")  
 
 
 def main():
@@ -261,22 +268,22 @@ def main():
         config = yaml.safe_load(file)
 
     print("adding scenarios to be analyzed")
-    # scenario_development(config)
+    scenario_development(config)
 
     print("storage_setup")
-    # storage_setup(config)
+    storage_setup(config)
 
     print("updating_parameters")
-    # update_parameters(config)
+    update_parameters(config)
 
     print("fixing invested variables")
-    # fix_no_investable_by_2030(config)
+    fix_no_investable_by_2030(config)
 
     print("ramping constraints")
     ramping_constraints(config)
 
     print("refinery constraints")
-    #refinery_constraints(config)
+    refinery_constraints(config)
 
     print("vre onshore potentials updates")
     onshore_potentials(config)
