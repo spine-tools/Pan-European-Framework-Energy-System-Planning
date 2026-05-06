@@ -255,11 +255,31 @@ def onshore_potentials(config):
         with DatabaseMapping(url_spineopt) as sopt_db:
             maximum_entities = [parameter_map  for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "maximum_entities_invested_available") if "wind-on" in parameter_map["entity_byname"][0] or "solar-PV" in parameter_map["entity_byname"][0]]
             for max_entity in maximum_entities:
-                add_or_update_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",max_entity["entity_byname"],max_entity["parsed_value"]*config["onshore_potentials"])
+                if "MT" not in max_entity["entity_byname"][0]:
+                    add_or_update_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",max_entity["entity_byname"],max_entity["parsed_value"]*config["onshore_potentials"])
+
             try:
                 sopt_db.commit_session("vre onshore potentials update")
             except:
                 print("###################################################################### vre onshore potentials update commit error")  
+
+def biomass_limitations(config):
+    if config["include_biomass_potential_limitations"]:
+        print("WARNING: If you haven't reset the model, you are reducing the biomass potentials once again.")
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            for parameter_name in ["candidate_storages","fix_node_state","fix_storages_invested_available","initial_storages_invested_available"]:
+                for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = parameter_name):
+                    if parameter_map["type"] == "float":
+                        parameter_value = config["biomass_potential_realistic"]*parameter_map["parsed_value"]
+                    elif parameter_map["type"] == "time_series":
+                        values_ = config["biomass_potential_realistic"]*parameter_map["parsed_value"].values
+                        indexes_ = [pd.Timestamp(i).isoformat() for i in parameter_map["parsed_value"].indexes]
+                        parameter_value = {"type":"time_series","data":dict(zip(indexes_,values_))}
+                    add_or_update_parameter_value(sopt_db,parameter_map["entity_class_name"],parameter_name,parameter_map["alternative_name"],parameter_map["entity_byname"],parameter_value)
+            try:
+                sopt_db.commit_session("vre biomass potentials update")
+            except:
+                print("###################################################################### vre biomass potentials update commit error")  
 
 
 def main():
@@ -287,6 +307,9 @@ def main():
 
     print("vre onshore potentials updates")
     onshore_potentials(config)
+
+    print("biomass potentials updates")
+    biomass_limitations(config)
 
 if __name__ == "__main__":
     main()
