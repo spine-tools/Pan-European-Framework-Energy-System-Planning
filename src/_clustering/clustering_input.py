@@ -67,6 +67,7 @@ def input_data():
             per_cat[cat] = profiles_df.loc[mask].groupby("timestep", dropna=True)["value"].mean()
 
         wide = pd.DataFrame(per_cat).sort_index() 
+        wide = wide.dropna(axis=1, how="all")
         long = (wide.reset_index(names="timestep").melt(id_vars="timestep", var_name="profile_name", value_name="value").sort_values(["profile_name", "timestep"]).reset_index(drop=True))    
 
         long = long[["profile_name","timestep","value"]]

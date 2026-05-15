@@ -26,12 +26,12 @@ import dill
 import time as time_lib
 
 start_time = time_lib.time()
-url_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_model\.spinetoolbox\items\investment_results\Investment_Results.sqlite" #sys.argv[1]
+url_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\investment_results\Investment_Results.sqlite" #sys.argv[1]
 result_db = DatabaseMapping(url_results)
 result_db.fetch_all()
 
 if len(sys.argv) > 2:
-    sopt_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_model\.spinetoolbox\items\final_spineopt_model\Final_SpineOpt_Model.sqlite" # sys.argv[2]
+    sopt_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\final_spineopt_model\Final_SpineOpt_Model.sqlite" # sys.argv[2]
     sopt_db = DatabaseMapping(sopt_results)
     sopt_db.fetch_all()
 else:
@@ -99,6 +99,7 @@ def from_DB_to_df(map_years):
     years_index = [pd.Timestamp(i) for year in map_years for i in pd.date_range(start=start_date[year],end=str(year)+"-12-31 23:00:00",freq="1h")]
 
     rps = get_representative_periods()
+    flex_res = check_flexible_resolution()
 
     analyzed_nodes = ["elec","HC","H2","CH4","heat","cool","MeOH"]#,"steel-primary","steel-secondary","MeOH","glass-float","glass-container","glass-fibre","fertiliser-ammonia-NH3","chemical-PE","chemical-PEA","chemical-olefins","cement"]
     unit_to_node_map = {}
@@ -136,6 +137,10 @@ def from_DB_to_df(map_years):
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
+                    elif flex_res:
+                        for year_res in flex_res:
+                            mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                            data.loc[mask] *= flex_res[year_res]
 
                     yearly_sums = data.groupby(data.index.year).sum()
                     unit_to_flows_list[alte_name].append([unit_name,node_name.split("_")[0]] + [yearly_sums.get(year_i, 0) for year_i in map_years])
@@ -167,7 +172,11 @@ def from_DB_to_df(map_years):
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
-                    
+                    elif flex_res:
+                        for year_res in flex_res:
+                            mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                            data.loc[mask] *= flex_res[year_res]
+
                     yearly_sums = data.groupby(data.index.year).sum()
                     if node_name != "atmosphere":
                         energy_map_list[alte_name].append([node_name.split("_")[0],unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
@@ -195,6 +204,11 @@ def from_DB_to_df(map_years):
                         if rps:
                             rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                             data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
+                        elif flex_res:
+                            for year_res in flex_res:
+                                mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                                data.loc[mask] *= flex_res[year_res]
+
                         yearly_sums = data.groupby(data.index.year).sum()
                         unit_to_node_map[link_name] = link_name.split("__")[1].split("_")[0]
                         energy_map_list[alte_name].append([node_name.split("_")[0],link_name]  + [yearly_sums.get(year_i, 0) for year_i in map_years])
@@ -219,7 +233,11 @@ def from_DB_to_df(map_years):
                             if rps:
                                 rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                                 data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
-                            
+                            elif flex_res:
+                                for year_res in flex_res:
+                                    mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                                    data.loc[mask] *= flex_res[year_res]
+
                             yearly_sums = data.groupby(data.index.year).sum()
                             if len(node_name.split("_")) > 1:
                                 #print(link_name)
@@ -237,6 +255,10 @@ def from_DB_to_df(map_years):
                         if rps:
                             rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                             data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
+                        elif flex_res:
+                            for year_res in flex_res:
+                                mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                                data.loc[mask] *= flex_res[year_res]
                         yearly_sums = data.groupby(data.index.year).sum()
                         flows_sto_list[alte_name].append([node_name,link_name]  + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
@@ -255,7 +277,11 @@ def from_DB_to_df(map_years):
                     if rps:
                         rp_alternative = [i for i in scenario_config["scenarios"][scenario_name.split("__")[0]] if i in rps.keys()][0]
                         data = data.loc[rps[rp_alternative].index]*rps[rp_alternative].loc[:,"weight"]
-                    
+                    elif flex_res:
+                        for year_res in flex_res:                           
+                            mask = data.index.year == (year_res if year_res != 2040 else 2041)
+                            data.loc[mask] *= flex_res[year_res]
+
                     yearly_sums = data.groupby(data.index.year).sum()
                     unit_to_node_map[node_name] = "residual-"+node_name.split("_")[0]
                     energy_map_list[alte_name].append([node_name.split("_")[0],node_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
@@ -334,7 +360,9 @@ def from_DB_to_df(map_years):
                     data = pd.DataFrame(map_table, columns=index_names + [storage_name]).set_index(index_names[0])
                     storages_dec_list[alte_name].append([storage_name] + (capacity_value*data[storage_name]).to_list())
 
-    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "node_state_longterm"):
+    
+    node_state_param = "node_state_longterm" if rps else "node_state"
+    for param_map in result_db.get_parameter_value_items(parameter_definition_name = node_state_param):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
         if scenario_name in latest_alternatives:
@@ -427,6 +455,18 @@ def clean_storage_flows(energy_map,unit_to_node_map,map_years):
             energy_map.loc[com_i,"target"] = unit_name_dir2
 
     return energy_map, unit_to_node_map
+
+def check_flexible_resolution():
+    resolutions = {}
+
+    for otb in sopt_db.get_parameter_value_items(parameter_definition_name = "resolution"):
+        if "operations" in otb["entity_byname"][0] and otb["alternative_name"]!="Base":
+            if otb["type"] == "array":
+                list_values = json.loads(otb["value"])["data"]
+                weights = [pd.Timedelta(i).total_seconds()/3600 for i in list_values]
+                resolutions[int(otb["entity_byname"][0].split("_")[1][1:])] = np.array(weights)
+
+    return resolutions
 
 def main():
 

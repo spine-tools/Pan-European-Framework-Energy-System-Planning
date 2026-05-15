@@ -69,12 +69,16 @@ def find_the_extreme_period(latest_alternatives):
                             else:
                                 if shed.at[index_] > dict_extremes[day][2]:
                                     dict_extremes[day] = ["winter" if pd.Timestamp(index_).month in [10,11,12,1,2,3] else "summer", pd.Timestamp(index_).year, shed.at[index_]]
-    extremes_df = pd.DataFrame.from_dict(dict_extremes,orient="index",columns=["season","year","impact"]).reset_index().rename(columns={"index":"day"})
+    extremes_df = pd.DataFrame.from_dict(dict_extremes,orient="index",columns=["season","year","impact"]).reset_index().rename(columns={"index":"day"}).sort_values(by="impact",ascending=False)
     return extremes_df
 
 def build_initial_representatives(extremes_df):
 
     profiles = {}
+    
+    current_dir = os.path.dirname(__file__)
+    parent_dir = os.path.dirname(current_dir)
+
     profiles_folder = "profiles/"
     results_folder = "results/"
     representative_periods_df = pd.read_csv(os.path.join(results_folder,"representative_periods.csv"))
@@ -119,6 +123,7 @@ def main():
 
     latest_alternatives = get_latest_alternatives(config)
     extremes_df = find_the_extreme_period(latest_alternatives)
+    print(extremes_df)
     build_initial_representatives(extremes_df)
 
 if __name__ == "__main__":

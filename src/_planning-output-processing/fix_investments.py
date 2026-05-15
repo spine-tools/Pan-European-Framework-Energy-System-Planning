@@ -182,7 +182,10 @@ def delete_unused_alternatives():
             if not alt_in_parameter:
                 item_id = alt_map["id"]
                 spineopt_db.remove_item("alternative",item_id)
-        spineopt_db.commit_session("eliminate_unused_alternatives")
+        try:
+            spineopt_db.commit_session("eliminate_unused_alternatives")
+        except:
+            print("no unused alternatives to delete")
 
 def eliminate_investment_temporal_block(model_stage=True):
 
@@ -308,6 +311,27 @@ def add_slack_var_demand():
                         pass
         spineopt_db.commit_session("Added slack variable")
 
+def manage_outputs():
+    with DatabaseMapping(url_spineopt) as spineopt_db:
+
+        for entity_map in spineopt_db.get_entity_items(entity_class_name = "output"):
+            item_id = entity_map["id"]
+            spineopt_db.remove_item("entity",item_id)
+
+        report_name = "default_report"
+        outputs = ["unit_flow","connection_flow","node_state","node_injection",
+                   "variable_om_costs","fuel_costs","connection_flow_costs","taxes","objective_penalties",
+                   "total_costs",
+                   "node_slack_neg","node_slack_pos",
+                   "constraint_nodal_balance","constraint_units_available",
+                   "bound_units_on"]
+        
+        for output in outputs:
+            add_entity(spineopt_db,"output",(output,))
+            add_entity(spineopt_db,"report__output",(report_name,output))
+
+        spineopt_db.commit_session("Added outputs")
+
 def main():
     
     latest_alternatives = get_latest_alternatives()
@@ -321,6 +345,7 @@ def main():
     eliminate_investment_temporal_block()
     scenario_definition(model_stage)
     delete_unused_alternatives()
+    manage_outputs()
 
 
 if __name__ == "__main__":
