@@ -4,6 +4,7 @@ aluminium-secondary: industry
 steel-primary: industry
 steel-secondary: industry
 MeOH: methanol
+NH3: Ammonia
 glass-float: industry
 glass-fibre: industry
 glass-container: industry
@@ -80,8 +81,12 @@ bus-LNG: transport
 bus-LPG: transport
 aviation: transport
 int-aviation: transport
-maritime: transport
-int-maritime: transport
+maritime-HC: transport
+int-maritime-HC: transport
+maritime-NH3: transport
+int-maritime-NH3: transport
+maritime-MeOH: transport
+int-maritime-MeOH: transport
 rail: transport
 thermal-rail: transport
 atmosphere: emission

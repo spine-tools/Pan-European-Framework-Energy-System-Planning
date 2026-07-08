@@ -26,12 +26,12 @@ import dill
 import time as time_lib
 
 start_time = time_lib.time()
-url_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\investment_results\Investment_Results.sqlite" #sys.argv[1]
+url_results = sys.argv[1]#r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\investment_results\Investment_Results.sqlite" #sys.argv[1]
 result_db = DatabaseMapping(url_results)
 result_db.fetch_all()
 
 if len(sys.argv) > 2:
-    sopt_results = r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\final_spineopt_model\Final_SpineOpt_Model.sqlite" # sys.argv[2]
+    sopt_results = sys.argv[2]#r"sqlite:///C:\Users\papo002\Desktop\Pan-European_Framework\.spinetoolbox\items\final_spineopt_model\Final_SpineOpt_Model.sqlite" # sys.argv[2]
     sopt_db = DatabaseMapping(sopt_results)
     sopt_db.fetch_all()
 else:
@@ -101,13 +101,16 @@ def from_DB_to_df(map_years):
     rps = get_representative_periods()
     flex_res = check_flexible_resolution()
 
-    analyzed_nodes = ["elec","HC","H2","CH4","heat","cool","MeOH"]#,"steel-primary","steel-secondary","MeOH","glass-float","glass-container","glass-fibre","fertiliser-ammonia-NH3","chemical-PE","chemical-PEA","chemical-olefins","cement"]
+    analyzed_nodes = ["elec","HC","H2","CH4","heat","cool","MeOH","NH3"]#,"steel-primary","steel-secondary","MeOH","glass-float","glass-container","glass-fibre","fertiliser-ammonia-NH3","chemical-PE","chemical-PEA","chemical-olefins","cement"]
     unit_to_node_map = {}
     energy_map_list    = {name:[] for name in latest_alternatives}
     flows_map_list     = {name:[] for name in latest_alternatives}
     flows_sto_list     = {name:[] for name in latest_alternatives}
     emission_map_list  = {name:[] for name in latest_alternatives}
     unit_to_flows_list = {name:[] for name in latest_alternatives}
+    connections_cap_list  = {name:[] for name in latest_alternatives}
+    connections_inv_list  = {name:[] for name in latest_alternatives}
+    connections_dec_list  = {name:[] for name in latest_alternatives}
     storages_cap_list  = {name:[] for name in latest_alternatives}
     storages_inv_list  = {name:[] for name in latest_alternatives}
     storages_dec_list  = {name:[] for name in latest_alternatives}
@@ -323,6 +326,33 @@ def from_DB_to_df(map_years):
                 
                 units_dec_list[alte_name].append([unit_name] + (capacity_value*data[unit_name]).to_list())
 
+    for param_map in result_db.get_parameter_value_items(parameter_definition_name = "connections_invested_available"):
+        scenario_name, timestamp = param_map["alternative_name"].split("@")
+        timestamp = pd.Timestamp(timestamp)
+        if scenario_name in latest_alternatives:
+            if timestamp == latest_alternatives[scenario_name]:
+                alte_name = scenario_name
+                link_name = param_map["entity_byname"][1]
+                if len(link_name.split("_"))==3 and any(analyzed_node in link_name for analyzed_node in analyzed_nodes):
+                    p1, commodity, p2 = link_name.split("_")
+                    
+                    map_table = convert_map_to_table(param_map["parsed_value"])
+                    index_names = nested_index_names(param_map["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])
+                    connections_cap_list[alte_name].append([p1, p2, commodity] + (data[link_name]).to_list())
+
+                    invested = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "connections_invested", entity_byname = param_map["entity_byname"])
+                    map_table = convert_map_to_table(invested["parsed_value"])
+                    index_names = nested_index_names(invested["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])               
+                    connections_inv_list[alte_name].append([p1, p2, commodity] + (data[link_name]).to_list())
+
+                    decommissioned = result_db.get_parameter_value_item(entity_class_name = param_map["entity_class_name"], alternative_name = param_map["alternative_name"],parameter_definition_name = "connections_decommissioned", entity_byname = param_map["entity_byname"])
+                    map_table = convert_map_to_table(decommissioned["parsed_value"])
+                    index_names = nested_index_names(decommissioned["parsed_value"])
+                    data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])               
+                    connections_dec_list[alte_name].append([p1, p2, commodity] + (data[link_name]).to_list())
+
     sto_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="node_state_cap")}
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "storages_invested_available"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
@@ -381,6 +411,9 @@ def from_DB_to_df(map_years):
     flows_sto     = {name:pd.DataFrame(flows_sto_list[name],columns=["source","target"]+years) for name in latest_alternatives}
     emission_map  = {name:pd.DataFrame(emission_map_list[name],columns=["source","target"]+years) for name in latest_alternatives}
     unit_to_flows = {name:pd.DataFrame(unit_to_flows_list[name],columns=["unit_name","node"]+years) for name in latest_alternatives}
+    connections_cap= {name:pd.DataFrame(connections_cap_list[name],columns=["source","target","commodity"]+years) for name in latest_alternatives}
+    connections_inv= {name:pd.DataFrame(connections_dec_list[name],columns=["source","target","commodity"]+years) for name in latest_alternatives}
+    connections_dec= {name:pd.DataFrame(flows_map_list[name],columns=["source","target","commodity"]+years) for name in latest_alternatives}
     storages_cap  = {name:pd.DataFrame(storages_cap_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
     storages_inv  = {name:pd.DataFrame(storages_inv_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
     storages_dec  = {name:pd.DataFrame(storages_dec_list[name],columns=["storage_name"]+years) for name in latest_alternatives}
@@ -390,7 +423,7 @@ def from_DB_to_df(map_years):
     units_dec     = {name:pd.DataFrame(units_dec_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
     units_inv_cost= {name:pd.DataFrame(units_inv_cost_list[name],columns=["unit_name"]+years) for name in latest_alternatives}
     
-    return unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, flows_map, flows_sto, node_state
+    return unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, connections_cap, connections_inv, connections_dec, flows_map, flows_sto, node_state
 
 def get_representative_periods():
 
@@ -472,7 +505,7 @@ def main():
 
     resolution = 1
     map_years = {2030:"y2030",2041:"y2040",2050:"y2050"}
-    unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, flows_map, flows_sto, node_state = copy.deepcopy(from_DB_to_df(map_years))
+    unit_to_flows, energy_map, unit_to_node_map, emission_map, units_cap, units_inv, units_inv_cost, units_dec, storages_cap, storages_inv, storages_cost, storages_dec, connections_cap, connections_inv, connections_dec, flows_map, flows_sto, node_state = copy.deepcopy(from_DB_to_df(map_years))
 
     node_state = {scenario_map.get(k, k): v for k, v in node_state.items()}
     with open('files_out/node_state.dill', 'wb') as file:
@@ -665,8 +698,41 @@ def main():
     flows_df["scenario"] = flows_df["scenario"].map(scenario_map)
     flows_df.to_csv("files_out/crossborder_flows.csv")
 
-    #df_to_plots(installed_cap_df, invested_cap_df, decommissioned_df, flows, map_years, "node")
-    #df_to_sankey(energy_df, emission_df, map_years)
+    flow_av = []
+    for alternative_name in connections_cap:
+        connections_cap[alternative_name]["commodity"] = connections_cap[alternative_name]["commodity"].map(node_map)
+        connections_cap[alternative_name] = connections_cap[alternative_name][connections_cap[alternative_name]["source"] != connections_cap[alternative_name]["target"]]
+        connections_cap[alternative_name] = connections_cap[alternative_name][connections_cap[alternative_name][list(map_years.values())].sum(axis=1) > 0.001]
+        connections_cap[alternative_name]["scenario"] = alternative_name
+        connections_cap[alternative_name] = connections_cap[alternative_name][["source","target","commodity","y2030","y2040","y2050","scenario"]]
+        flow_av.append(connections_cap[alternative_name])
+    flow_av_df = pd.concat(flow_av,axis=0,ignore_index=True)
+    flow_av_df["scenario"] = flow_av_df["scenario"].map(scenario_map)
+    flow_av_df.to_csv("files_out/crossborder_capacity.csv")
+
+    flow_in = []
+    for alternative_name in connections_inv:
+        connections_inv[alternative_name]["commodity"] = connections_inv[alternative_name]["commodity"].map(node_map)
+        connections_inv[alternative_name] = connections_inv[alternative_name][connections_inv[alternative_name]["source"] != connections_inv[alternative_name]["target"]]
+        connections_inv[alternative_name] = connections_inv[alternative_name][connections_inv[alternative_name][list(map_years.values())].sum(axis=1) > 0.001]
+        connections_inv[alternative_name]["scenario"] = alternative_name
+        connections_inv[alternative_name] = connections_inv[alternative_name][["source","target","commodity","y2030","y2040","y2050","scenario"]]
+        flow_in.append(connections_inv[alternative_name])
+    flow_in_df = pd.concat(flow_in,axis=0,ignore_index=True)
+    flow_in_df["scenario"] = flow_in_df["scenario"].map(scenario_map)
+    flow_in_df.to_csv("files_out/crossborder_invested.csv")
+
+    flow_de = []
+    for alternative_name in connections_dec:
+        connections_dec[alternative_name]["commodity"] = connections_dec[alternative_name]["commodity"].map(node_map)
+        connections_dec[alternative_name] = connections_dec[alternative_name][connections_dec[alternative_name]["source"] != connections_dec[alternative_name]["target"]]
+        connections_dec[alternative_name] = connections_dec[alternative_name][connections_dec[alternative_name][list(map_years.values())].sum(axis=1) > 0.001]
+        connections_dec[alternative_name]["scenario"] = alternative_name
+        connections_dec[alternative_name] = connections_dec[alternative_name][["source","target","commodity","y2030","y2040","y2050","scenario"]]
+        flow_de.append(connections_dec[alternative_name])
+    flow_de_df = pd.concat(flow_de,axis=0,ignore_index=True)
+    flow_de_df["scenario"] = flow_de_df["scenario"].map(scenario_map)
+    flow_de_df.to_csv("files_out/crossborder_decommissioned.csv")
     
 if __name__ == "__main__":
     main()

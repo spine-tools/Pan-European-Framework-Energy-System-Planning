@@ -11,6 +11,7 @@ import json
 import yaml 
 import time as time_lib
 
+
 if len(sys.argv) > 1:
     url_spineopt = sys.argv[1]
 else:
@@ -229,7 +230,7 @@ def refinery_constraints(config):
                 parameter_value = {"type":"time_series","data":dict(zip(index_,value_))}
                 add_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",(f"{type_}fuels",),parameter_value)
 
-            for entity_HC in [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name="node") if "HC_" in entity_i["name"]]:
+            for entity_HC in [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name="node") if "HC_" in entity_i["name"] and len(entity_i["name"])==5]:
                 add_entity(sopt_db,"node",(f"bunker-{entity_HC}",))
                 add_parameter_value(sopt_db,"node","has_state","Base",(f"bunker-{entity_HC}",),True)
                 add_parameter_value(sopt_db,"node","is_longterm_storage","Base",(f"bunker-{entity_HC}",),True)
@@ -294,6 +295,7 @@ def investment_cost_update(config):
     
     default_technology_discount_rate = config["default_technology_discount_rate"]
     future_inflation = config["future_inflation"]
+    reference_year = int(config["economic_reference_year"])
     with DatabaseMapping(url_spineopt) as sopt_db:
 
         dates = []
@@ -338,50 +340,38 @@ def investment_cost_update(config):
 
                 # fom cost
                 fom_dict = sopt_db.get_parameter_value_item(entity_class_name = entities[index], parameter_definition_name = fcost[index], alternative_name = parameter_map["alternative_name"], entity_byname = parameter_map["entity_byname"])
-                if not fom_dict:
-                    fom_cost_condition = False
-                    print("FOM cost not found for ", parameter_map["entity_name"])
-                else:
-                    fom_cost_condition = True
-                    add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_dict["parsed_value"].values[2] if fom_dict["type"]=="time_series" else fom_dict["parsed_value"]))
-
+                fom_cost_condition = False if not fom_dict else True
                 value_dict = {}
                 crf = rate * (1 + rate)**lifetime / ((1 + rate)**lifetime - 1)
-                if parameter_map["type"] == "float":                 
-                    for date in dates:
-                        if date != dates[-1]:
-                            year = pd.Timestamp(date).year
-                            n_years = min(lifetime, final_year - year)
-                            annual_cost_nominal = parameter_map["parsed_value"] * (1 + future_inflation)**(year - 2025) * crf
-                            value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(2025 - i) for i in range(year, year + n_years))
-                        else:
-                            value_dict[dates[-1]] = value_dict[dates[-2]]
-                    new_value   = {"type":"time_series","data":value_dict}
-                else:
-                    if fom_cost_condition:
-                        if fom_dict["type"] == "float":
-                            fixed_cost = [fom_dict["parsed_value"],fom_dict["parsed_value"],fom_dict["parsed_value"]]
-                        else:
-                            fixed_cost = [fom_dict["parsed_value"].values[0],fom_dict["parsed_value"].values[1],fom_dict["parsed_value"].values[2]]
 
-                    map_table = convert_map_to_table(parameter_map["parsed_value"])
-                    index_names = nested_index_names(parameter_map["parsed_value"])
-                    data = pd.DataFrame(map_table, columns=index_names + ["value"]).set_index(index_names[0])["value"]
+                if parameter_map["type"] == "time_series": 
+                    df = pd.DataFrame(parameter_map["parsed_value"].values,index=parameter_map["parsed_value"].indexes,columns=["value"])
+                    data = df.copy()["value"]
                     data.index = [pd.Timestamp(i).isoformat() for i in data.index]
-                    #print(data)
-                    for date in dates:
-                        if date != dates[-1]:
-                            year = pd.Timestamp(date).year
-                            n_years = min(lifetime, final_year - year)
-                            annual_cost_nominal = data[date]* (1 + future_inflation)**(year - 2025) * crf
-                            value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(2025 - i) for i in range(year, year + n_years)) + ((fixed_cost[dates.index(date)] - fixed_cost[2])*8760 if fom_cost_condition else 0.0)*n_years
-                        else:
-                            value_dict[dates[-1]] = value_dict[dates[-2]] 
-                    new_value   = {"type":"time_series","data":value_dict} 
+
+                if fom_cost_condition:
+                    if fom_dict["type"] == "time_series":
+                        df = pd.DataFrame(fom_dict["parsed_value"].values,index=fom_dict["parsed_value"].indexes,columns=["value"])
+                        data_fom = df.copy()["value"]
+                        data_fom.index = [pd.Timestamp(i).isoformat() for i in data.index]
+
+                for date in dates:
+                    if date != dates[-1]:
+                        year = pd.Timestamp(date).year
+                        n_years = min(lifetime, final_year - year)
+                        annual_cost_nominal = (parameter_map["parsed_value"] if parameter_map["type"] == "float" else (data[date if date in data.index else dates[dates.index(date)-1]])) * (1 + future_inflation)**(year - reference_year) * crf 
+                        fom_cost_term = (0 if not fom_cost_condition else (fom_dict["parsed_value"] if fom_dict["type"] == "float" else (data_fom[date if date in data_fom.index else dates[dates.index(date)-1]])))*8760*n_years
+                        value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(reference_year - i) for i in range(year, year + n_years)) + fom_cost_term
+                    else:
+                        value_dict[dates[-1]] = value_dict[dates[-2]]
                 
-                # print("new value for the value cost", parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
+                new_value   = {"type":"time_series","data":value_dict}
                 add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], parameter_map["parameter_definition_name"], parameter_map["alternative_name"], parameter_map["entity_byname"], new_value)
-        
+                if not fom_cost_condition:
+                    print("FOM cost not found for ", parameter_map["entity_name"])
+                else:
+                    add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], fcost[index], fom_dict["alternative_name"], fom_dict["entity_byname"], (fom_dict["parsed_value"].values[-1] if fom_dict["type"]=="time_series" else fom_dict["parsed_value"]))
+
         try:
             sopt_db.commit_session("Update Investment Costs")
         except:
@@ -489,7 +479,7 @@ def main():
     storage_setup(config)
 
     print("updating_parameters")
-    update_parameters(config)
+    # update_parameters(config)
 
     print("fixing invested variables")
     fix_no_investable_by_2030(config)

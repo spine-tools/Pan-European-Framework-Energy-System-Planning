@@ -4,13 +4,14 @@ emission_factor: 1.0 #percentage of carbon budget considered in the model based 
 resolution: "1h"
 future_inflation: 0.03
 default_technology_discount_rate: 0.05
+economic_reference_year: 2025
 solver: "Gurobi.jl" # HiGHS.jl
 # configurable cyclic condition, storage options: battery-storage-iron-air,batter-storage,truck-DR,bus-DR,van-DR,car-DR
 long-term-storage: [battery-storage-iron-air]
 short-term-storage: [battery-storage,PH-reservoir,truck-DR,bus-DR,van-DR,car-DR]
 ratio_ground_air_HP: 0.3
 include_biomass_potential_limitations: True
-biomass_potential_realistic: 0.45
+biomass_potential_realistic: 0.5
 no_investable_2030:
   # Here we define the technologies that cannot be built by 2030 so then they cannot be investable in that year since there is no enough time for the construction.
   unit:
@@ -96,7 +97,7 @@ refineries:
 
 renewable_potentials:
   include_onshore_potential_limitations: True
-  onshore_potentials: 0.10 # percentage of available onshore potentials for wind and solar. 
+  onshore_potentials: 0.15 # percentage of available onshore potentials for wind and solar. 
   max_capacity_history:
     wind-on:
       AL: 0
@@ -200,8 +201,14 @@ economic_parameters:
       WACC:  0.07
     CCGT+CC: 
       WACC:  0.07
+    CCGT-H2: 
+      WACC:  0.08
+    OCGT-H2: 
+      WACC:  0.085
     OCGT: 
       WACC:  0.08
+    fuelcell:
+      WACC: 0.085
     battery-storage: 
       WACC:  0.07
     wind-on-SP277-HH100: 
@@ -219,7 +226,11 @@ economic_parameters:
     (H2)MeOH-DC:
       WACC: 0.10
     bio-diges-up:
-      WACC: 0.07
+      WACC: 0.075
+    bio-diges-up+CC:
+      WACC: 0.08
+    harber-bosch:
+      WACC: 0.08
     methanation:
       WACC: 0.10
   node:

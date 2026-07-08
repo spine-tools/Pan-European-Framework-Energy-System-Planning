@@ -5,9 +5,11 @@ solar-PV: Solar
 bioST: Biomass Steam Turbine
 nuclear: Nuclear
 SCPC: Coal Power Plant
+CCGT-H2: H2-fired Combined-cycle Gas Turbine
+OCGT-H2: H2-fired Open-cycle Gas Turbine
 CCGT+CC: Combined-cycle Gas Turbine w/CC
-CCGT: Combined-cycle Gas Turbine
-OCGT: Open-cycle Gas Turbine
+CCGT_: Combined-cycle Gas Turbine
+OCGT_: Open-cycle Gas Turbine
 wasteST: Waste Steam Turbine
 oil-eng: Diesel Group
 hydro-turbine: Hydro Turbine
@@ -34,6 +36,8 @@ CH4-import: Gas Imports
 LNG-terminal: LNG Terminals
 gas-extraction: Gas Extractions
 bio-diges-up: Bio-digestion and Upgrading
+bio-diges-up+CC: Bio-digestion and Upgrading w/CC
+harber-bosch: Harber Bosch
 methanation: Methanation
 (H2)MeOH-DC: Syn-production of Methanol
 (BM)MeOH: Bio-production of Methanol
