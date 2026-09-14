@@ -60,11 +60,21 @@ def add_scenario(db_map : DatabaseMapping,name_scenario : str) -> None:
     if error is not None:
         raise RuntimeError(error)
 
+def add_alternative(db_map : DatabaseMapping,name_alternative : str) -> None:
+    _, error = db_map.add_alternative_item(name=name_alternative)
+    if error is not None:
+        raise RuntimeError(error)
+    
 def add_scenario_alternative(db_map : DatabaseMapping,name_scenario : str, name_alternative : str, rank_int = None) -> None:
     _, error = db_map.add_scenario_alternative_item(scenario_name = name_scenario, alternative_name = name_alternative, rank = rank_int)
     if error is not None:
         raise RuntimeError(error)
 
+def add_entity_alternative(db_map : DatabaseMapping,entity_class_name : str, entity_byname : tuple, alternative_name = str, active = bool) -> None:
+    _, error = db_map.add_entity_alternative_item(entity_class_namee = entity_class_name, entity_byname = entity_byname, alternative_name = alternative_name, active = active)
+    if error is not None:
+        raise RuntimeError(error)
+    
 def scenario_development(config):
 
     with DatabaseMapping(url_spineopt) as sopt_db:
@@ -88,10 +98,10 @@ def storage_setup(config):
         list_rep = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "representative_period" in entity_i["name"]]
         list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]                    
     
-        for param_map in sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "has_state"):
+        for param_map in sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "storage_active"):
             if bool(param_map["parsed_value"]):
                 if all(sto+"_" not in param_map["entity_byname"][0] for sto in config["short-term-storage"]):
-                    add_or_update_parameter_value(sopt_db,"node","is_longterm_storage","Base",(param_map["entity_byname"][0],),True)
+                    add_or_update_parameter_value(sopt_db,"node","storage_longterm_active","Base",(param_map["entity_byname"][0],),True)
                     cyclic_condition_status = [entity_i for entity_i in sopt_db.get_parameter_value_items(entity_class_name = "node__temporal_block", alternative_name = "Base", parameter_definition_name = "cyclic_condition") if param_map["entity_byname"][0] == entity_i["entity_byname"][0]]
                     if cyclic_condition_status and sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps"):
                         try:
@@ -117,16 +127,16 @@ def storage_setup(config):
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],rep))
                             except:
-                                print(f"Entity node__temporal_bloc with {rep}")
+                                print(f"Entity node__temporal_block with {rep}")
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(param_map["entity_byname"][0],rep),True)
                     else:
-                        add_or_update_parameter_value(sopt_db,"node","is_longterm_storage","Base",(param_map["entity_byname"][0],),True)
+                        add_or_update_parameter_value(sopt_db,"node","storage_longterm_active","Base",(param_map["entity_byname"][0],),True)
                         for tb in list_otb:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],tb))
                             except:
-                                print(f"Entity node__temporal_bloc with {tb}")
+                                print(f"Entity node__temporal_block with {tb}")
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(param_map["entity_byname"][0],tb),True)
         try:
@@ -140,15 +150,34 @@ def update_parameters(config):
 
         resolution_ = config["resolution"]
         parameter_value = {"type":"duration","data":resolution_}
-        #for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "resolution"):
-        #    if "planning" not in parameter_map["entity_byname"][0]:
-        #        add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], "resolution", parameter_map["alternative_name"], parameter_map["entity_byname"], parameter_value)
-        add_or_update_parameter_value(sopt_db, "node", "initial_storages_invested_available", "Base", ("CO2-storage", ), 0.2*1e3*config["emission_factor"])
-        add_or_update_parameter_value(sopt_db, "node", "fix_storages_invested_available", "Base", ("CO2-storage", ), 0.2*1e3*config["emission_factor"])
-        add_or_update_parameter_value(sopt_db, "node", "initial_storages_invested_available", "Base", ("atmosphere", ), 2.6*1e3*config["emission_factor"])
-        indexes_ = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
-        values_  = np.array([2.6*1e3,0.58*1e3,0.0,0.0])*config["emission_factor"]
-        add_or_update_parameter_value(sopt_db, "node", "candidate_storages", "Base", ("atmosphere", ), {"type":"time_series", "data":dict(zip(indexes_,values_))})
+        for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "resolution"):
+            if "planning" not in parameter_map["entity_byname"][0]:
+                add_or_update_parameter_value(sopt_db, parameter_map["entity_class_name"], "resolution", parameter_map["alternative_name"], parameter_map["entity_byname"], parameter_value)
+        
+        
+        for co2_parameter in ["storage_investment_count_fix_cumulative"]:
+            target_parameters = sopt_db.get_parameter_value_items(entity_class_name = "node", entity_byname = ("CO2-storage", ), parameter_definition_name = co2_parameter)
+            for target_parameter in target_parameters:
+                
+                if target_parameter["type"] == "float":
+                    parameter_value = target_parameter["parsed_value"]*config["emission_factor"]
+                elif target_parameter["type"] == "time_series":
+                    parameter_value = json.loads(target_parameter["value"])
+                    parameter_value["data"] = {k:v*config["emission_factor"] for k,v in parameter_value["data"].items()}
+
+                add_or_update_parameter_value(sopt_db, "node", co2_parameter, target_parameter["alternative_name"], ("CO2-storage", ), parameter_value)
+
+        for atm_parameter in ["storage_investment_count_initial_cumulative","storage_investment_count_max_cumulative"]:
+            target_parameters = sopt_db.get_parameter_value_items(entity_class_name = "node", entity_byname = ("atmosphere", ), parameter_definition_name = atm_parameter)
+            for target_parameter in target_parameters:
+                
+                if target_parameter["type"] == "float":
+                    parameter_value = target_parameter["parsed_value"]*config["emission_factor"]
+                elif target_parameter["type"] == "time_series":
+                    parameter_value = json.loads(target_parameter["value"])
+                    parameter_value["data"] = {k:v*config["emission_factor"] for k,v in parameter_value["data"].items()}
+
+                add_or_update_parameter_value(sopt_db, "node", atm_parameter, target_parameter["alternative_name"], ("atmosphere", ), parameter_value)
         try:
             sopt_db.commit_session("Update parameters")
         except:
@@ -160,7 +189,7 @@ def fix_no_investable_by_2030(config):
     values_ = [0.0,None,None,None]
     parameter_value = {"type":"time_series","data":dict(zip(indexes_,values_))}
 
-    parameter_name_map = {"unit":"fix_units_invested","node":"fix_storages_invested","connection":"fix_connections_invested"}
+    parameter_name_map = {"unit":"investment_count_fix_new","node":"storage_investment_count_fix_new","connection":"investment_count_fix_new"}
 
     with DatabaseMapping(url_spineopt) as sopt_db:
         fix_config = config["no_investable_2030"]
@@ -219,7 +248,7 @@ def refinery_constraints(config):
                 coefficient_2050 = config["refineries"][type_]["share_2050"]
                 refinery_cap = 0
                 for tech in entities["fossil"]:
-                    initial_cap = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base", parameter_definition_name = "initial_units_invested_available", entity_byname = (tech,))
+                    initial_cap = sopt_db.get_parameter_value_item(entity_class_name = "unit", alternative_name = "Base", parameter_definition_name = "investment_count_initial_cumulative", entity_byname = (tech,))
                     if initial_cap:
                         refinery_cap += initial_cap["parsed_value"]
                 for tech in entities[type_]:
@@ -228,12 +257,12 @@ def refinery_constraints(config):
                 index_ = ["2030-01-01T00:00:00","2040-01-01T00:00:00","2050-01-01T00:00:00","2060-01-01T00:00:00"]
                 value_ = [coefficient_2030*refinery_cap,coefficient_2040*refinery_cap,coefficient_2050*refinery_cap,coefficient_2050*refinery_cap]
                 parameter_value = {"type":"time_series","data":dict(zip(index_,value_))}
-                add_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",(f"{type_}fuels",),parameter_value)
+                add_parameter_value(sopt_db,"investment_group","investment_count_total_max_cumulative","Base",(f"{type_}fuels",),parameter_value)
 
             for entity_HC in [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name="node") if "HC_" in entity_i["name"] and len(entity_i["name"])==5]:
                 add_entity(sopt_db,"node",(f"bunker-{entity_HC}",))
-                add_parameter_value(sopt_db,"node","has_state","Base",(f"bunker-{entity_HC}",),True)
-                add_parameter_value(sopt_db,"node","is_longterm_storage","Base",(f"bunker-{entity_HC}",),True)
+                add_parameter_value(sopt_db,"node","storage_active","Base",(f"bunker-{entity_HC}",),True)
+                add_parameter_value(sopt_db,"node","storage_longterm_active","Base",(f"bunker-{entity_HC}",),True)
                 for tb in list_otb:
                     add_entity(sopt_db,"node__temporal_block",(f"bunker-{entity_HC}",tb))
                     add_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","Base",(f"bunker-{entity_HC}",tb),True)
@@ -257,7 +286,7 @@ def onshore_potentials(config_renewable):
     if config["include_onshore_potential_limitations"]:
         print("WARNING: If you haven't reset the model, you are reducing the VRE potentials once again.")
         with DatabaseMapping(url_spineopt) as sopt_db:
-            maximum_entities = [parameter_map  for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "maximum_entities_invested_available") if "wind-on" in parameter_map["entity_byname"][0] or "solar-PV" in parameter_map["entity_byname"][0]]
+            maximum_entities = [parameter_map  for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = "investment_count_total_max_cumulative") if "wind-on" in parameter_map["entity_byname"][0] or "solar-PV" in parameter_map["entity_byname"][0]]
 
             for max_entity in maximum_entities:
                 if "MT" not in max_entity["entity_byname"][0]:
@@ -265,7 +294,7 @@ def onshore_potentials(config_renewable):
                     polygon = max_entity["entity_byname"][0].split("_")[1]
                     initial_value = config["max_capacity_history"][tech_type][polygon]
                     parameter_value = max_entity["parsed_value"]*config["onshore_potentials"] if max_entity["parsed_value"]*config["onshore_potentials"] > initial_value else initial_value
-                    add_or_update_parameter_value(sopt_db,"investment_group","maximum_entities_invested_available","Base",max_entity["entity_byname"],parameter_value)
+                    add_or_update_parameter_value(sopt_db,"investment_group","investment_count_total_max_cumulative","Base",max_entity["entity_byname"],parameter_value)
 
             try:
                 sopt_db.commit_session("vre onshore potentials update")
@@ -276,7 +305,7 @@ def biomass_limitations(config):
     if config["include_biomass_potential_limitations"]:
         print("WARNING: If you haven't reset the model, you are reducing the biomass potentials once again.")
         with DatabaseMapping(url_spineopt) as sopt_db:
-            for parameter_name in ["candidate_storages","fix_node_state","fix_storages_invested_available","initial_storages_invested_available"]:
+            for parameter_name in ["storage_investment_count_max_cumulative","storage_state_fix","storage_investment_count_fix_cumulative","storage_investment_count_initial_cumulative"]:
                 for parameter_map in sopt_db.get_parameter_value_items(parameter_definition_name = parameter_name):
                     if "biomass-stock" in parameter_map["entity_byname"][0]:
                         if parameter_map["type"] == "float":
@@ -308,11 +337,11 @@ def investment_cost_update(config):
 
         entities = ["unit","connection","node"]
         icost    = ["unit_investment_cost","connection_investment_cost","storage_investment_cost"]
-        fcost    = ["fom_cost","","storage_fom_cost"]
-        ilife    = ["unit_investment_econ_lifetime","connection_investment_econ_lifetime","storage_investment_econ_lifetime"]
-        tlife    = ["unit_investment_tech_lifetime","connection_investment_tech_lifetime","storage_investment_tech_lifetime"]
-        isense   = ["unit_investment_lifetime_sense","connection_investment_lifetime_sense","storage_investment_lifetime_sense"]
-        irate    = ["unit_discount_rate_technology_specific","connection_discount_rate_technology_specific","storage_discount_rate_technology_specific"]
+        fcost    = ["fom_cost","fixed_annual_cost","storage_fixed_annual_cost"]
+        ilife    = ["lifetime_economic","lifetime_economic","storage_lifetime_economic"]
+        tlife    = ["lifetime_technical","lifetime_technical","storage_lifetime_technical"]
+        isense   = ["lifetime_constraint_sense","lifetime_constraint_sense","storage_lifetime_constraint_sense"]
+        irate    = ["discount_rate_technology_specific","discount_rate_technology_specific","storage_discount_rate_technology_specific"]
         
         for index, entity_class_name in enumerate(entities): 
 
@@ -360,7 +389,7 @@ def investment_cost_update(config):
                         year = pd.Timestamp(date).year
                         n_years = min(lifetime, final_year - year)
                         annual_cost_nominal = (parameter_map["parsed_value"] if parameter_map["type"] == "float" else (data[date if date in data.index else dates[dates.index(date)-1]])) * (1 + future_inflation)**(year - reference_year) * crf 
-                        fom_cost_term = (0 if not fom_cost_condition else (fom_dict["parsed_value"] if fom_dict["type"] == "float" else (data_fom[date if date in data_fom.index else dates[dates.index(date)-1]])))*8760*n_years
+                        fom_cost_term = (0 if not fom_cost_condition else (fom_dict["parsed_value"] if fom_dict["type"] == "float" else (data_fom[date if date in data_fom.index else dates[dates.index(date)-1]])))*(8760.0 if entities[index] == "unit" else 1.0)*n_years
                         value_dict[date] = sum(annual_cost_nominal * (1 + future_inflation)**(reference_year - i) for i in range(year, year + n_years)) + fom_cost_term
                     else:
                         value_dict[dates[-1]] = value_dict[dates[-2]]
@@ -385,10 +414,11 @@ def air_ground_heatpump(config):
             polygon_name = entity_name.split("_")[1]
             add_entity(sopt_db,"user_constraint",("heatpump-ratio"+"_"+polygon_name,))
             add_entity(sopt_db,"unit__user_constraint",(entity_name,"heatpump-ratio"+"_"+polygon_name))
-            add_parameter_value(sopt_db,"unit__user_constraint","units_invested_coefficient","Base",(entity_name,"heatpump-ratio"+"_"+polygon_name),1.0)
+            add_parameter_value(sopt_db,"unit__user_constraint","coefficient_for_units_invested","Base",(entity_name,"heatpump-ratio"+"_"+polygon_name),1.0)
+            add_parameter_value(sopt_db,"unit__user_constraint","coefficient_for_units_invested_available","Base",(entity_name,"heatpump-ratio"+"_"+polygon_name),0.0)
             add_entity(sopt_db,"unit__user_constraint",("air-heatpump"+"_"+polygon_name,"heatpump-ratio"+"_"+polygon_name))
-            add_parameter_value(sopt_db,"unit__user_constraint","units_invested_coefficient","Base",("air-heatpump"+"_"+polygon_name,"heatpump-ratio"+"_"+polygon_name),-config["ratio_ground_air_HP"])
-        
+            add_parameter_value(sopt_db,"unit__user_constraint","coefficient_for_units_invested","Base",("air-heatpump"+"_"+polygon_name,"heatpump-ratio"+"_"+polygon_name),-config["ratio_ground_air_HP"])
+            add_parameter_value(sopt_db,"unit__user_constraint","coefficient_for_units_invested_available","Base",("air-heatpump"+"_"+polygon_name,"heatpump-ratio"+"_"+polygon_name),0.0)
         try:
             sopt_db.commit_session("Add User Constraint Heat Pumps")
         except:
@@ -400,7 +430,7 @@ def manage_output():
         report_name = "default_report"
         add_entity(sopt_db,"report",(report_name,))
         add_entity(sopt_db,"model__report",("capacity_planning",report_name))
-        outputs = ["unit_capacity","connection_capacity","node_state_cap","demand",
+        outputs = ["capacity_per_unit","capacity_per_connection","storage_state_max","demand",
                    "connections_invested","connections_invested_available","connections_decommissioned","units_invested","units_invested_available","units_mothballed",
                    "storages_invested","storages_invested_available","storages_decommissioned","unit_flow","connection_flow","node_state","node_state_longterm","node_injection",
                    #"unit_investment_cost","connection_investment_cost","storage_investment_cost",
@@ -425,8 +455,8 @@ def solver_options(config):
                        {"HiGHS.jl" :{"type":"map","index_type":"str","index_name":"x","data":{"presolve":"on","time_limit":3600.01}},
                         "Gurobi.jl":{"type":"map","index_type":"str","index_name":"x","data":{"Method":2.0,"NumericFocus":2.0,"Crossover":0.0}}}}
         
-        add_parameter_value(sopt_db,"model","db_mip_solver_options","Base",("capacity_planning",),map_options)
-        add_parameter_value(sopt_db,"model","db_mip_solver","Base",("capacity_planning",),config["solver"])
+        add_parameter_value(sopt_db,"model","solver_mip_options","Base",("capacity_planning",),map_options)
+        add_parameter_value(sopt_db,"model","solver_mip","Base",("capacity_planning",),config["solver"])
         try:
             sopt_db.commit_session("Added solver_options")
         except:
@@ -436,8 +466,8 @@ def update_economic_parameters(config):
 
     with DatabaseMapping(url_spineopt) as sopt_db:
 
-        economic_lifetime = {"unit":"unit_investment_econ_lifetime","connection":"connection_investment_econ_lifetime","node":"storage_investment_econ_lifetime"}
-        discount_rate = {"unit":"unit_discount_rate_technology_specific","connection":"connection_discount_rate_technology_specific","node":"storage_discount_rate_technology_specific"}
+        economic_lifetime = {"unit":"lifetime_economic","connection":"lifetime_economic","node":"storage_lifetime_economic"}
+        discount_rate = {"unit":"discount_rate_technology_specific","connection":"discount_rate_technology_specific","node":"storage_discount_rate_technology_specific"}
         
         for entity_class in config["economic_parameters"]:
             for entity_item in sopt_db.get_entity_items(entity_class_name = entity_class):
@@ -451,6 +481,139 @@ def update_economic_parameters(config):
             sopt_db.commit_session("Added economic parameters")
         except:
             print("############################## error committing economic parameters")
+
+def limit_buildout(config):
+
+    if config["set_technology_buildout"]:
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            entities = {tech:[entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "unit") if tech in entity_i["name"]] for tech in config["technology_buildout"]}
+            for entity in entities:
+                add_entity(sopt_db,"investment_group",(entity,))
+                try:
+                    add_alternative(sopt_db,"limited_"+entity)
+                except:
+                    pass
+                indexes = [str(i)+"-01-01T00:00:00" for i in list(config["technology_buildout"][entity].keys())]
+                values = list(config["technology_buildout"][entity].values())
+                indexes.append("2060-01-01T00:00:00")
+                values.append(values[-1])
+                parameter_value = {"type":"time_series","data":dict(zip(indexes,values))}
+                add_parameter_value(sopt_db,"investment_group","investment_count_total_max_cumulative","limited_"+entity,(entity,),parameter_value)
+                for tech in entities[entity]:
+                    add_entity(sopt_db,"unit__investment_group",(tech,entity))
+            try:
+                sopt_db.commit_session("Added technology buildout")
+            except:
+                print("############################## error technology buildout parameters")
+
+def demand_flex(config):
+    if config["set_industry_buildings_flex"]:
+        industry = ["cement","chemical-chlorine","chemical-olefins","chemical-PE","chemical-PEA","fertiliser-ammonia-NH3","glass-container","glass-fibre","glass-float","steel-primary","steel-seconday","alumina","aluminium-primary","aluminium-secondary","electric-arc-steel","food-beverages-tobacco","leather-and-textile","machinery-equipment","other-non-ferrous-metals","paper","pharmaceuticals","printing-and-media","pulp","pulp","transport-equipment","wood-and-wood-products"]
+        heat = ["nonres-cool","nonres-DHW","nonres-space","res-cool","res-DHW","res-space"]
+        comfort_buildings = config["industry_buildings_flex"]["comfort_buildings"]
+        comfort_industry = config["industry_buildings_flex"]["comfort_industry"]
+        flex_buildings = config["industry_buildings_flex"]["flex_buildings"]
+        flex_industry = config["industry_buildings_flex"]["flex_industry"]
+
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            list_rep = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "representative_period" in entity_i["name"]]
+            list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]                    
+            demands = sopt_db.get_parameter_vale_items(entity_class_name = "node", parameter_definition_name = "demand"):
+            for demand in demands:
+                node = demand["entity_name"]
+                if any(i in node for i in heat):
+                    peak_demand = demand["parsed_value"].values.max()
+                    target_node = [j for j in heat if j in demand["entity_name"]][0]+"_"+demand["entity_name"].split("_")[1]
+                    try:
+                        add_alternative(sopt_db,"flex_buildings")
+                    except:
+                        pass
+                    add_parameter_value(sopt_db,"node","storage_active","flex_buildings",(target_node,),True)
+                    if list_rep:
+                        for rep in list_rep:
+                            try:
+                                add_entity(sopt_db,"node__temporal_block",(target_node,rep))
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_buildings", True)
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
+                            except:
+                                pass
+                            add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_buildings",(target_node,rep),True)
+                    else:
+                        add_or_update_parameter_value(sopt_db,"node","storage_longterm_active","flex_buildings",(target_node,),True)
+                        for tb in list_otb:
+                            try:
+                                add_entity(sopt_db,"node__temporal_block",(target_node,tb))
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_buildings", True)
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
+                            except:
+                                pass
+                            add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_buildings",(target_node,tb),True)
+                    for frac_demand in sopt_db.get_parameter_vale_items(entity_class_name = "node", parameter_definition_name = "demand_fraction", entity_byname = (target_node,)):
+                        values = [i*peak_demand*flex_buildings*comfort_buildings  for i in frac_demand["parsed_value"].values]
+                        indexes = [pd.Timestamp(i.value).indexes for i in frac_demand["parsed_value"].indexes]
+                        parameter_value = {"type":"time_series","data":dict(zip(indexes,values))}
+                        try:
+                            add_alternative(sopt_db,"flex_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"])
+                        except:
+                            pass
+                        add_parameter_value(sopt_db,"node","storage_sate_max","flex_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"],(target_node,),parameter_value)
+
+                if any(i in node for i in industry):
+                    peak_demand = demand["parsed_value"]
+                    target_node = [j for j in heat if j in demand["entity_name"]][0]+"_"+demand["entity_name"].split("_")[1]
+                    try:
+                        add_alternative(sopt_db,"flex_industry")
+                    except:
+                        pass
+                    add_parameter_value(sopt_db,"node","storage_active","flex_industry",(target_node,),True)
+                    if list_rep:
+                        for rep in list_rep:
+                            try:
+                                add_entity(sopt_db,"node__temporal_block",(target_node,rep))
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_industry", True)
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
+                            except:
+                                pass
+                            add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_industry",(target_node,rep),True)
+                    else:
+                        add_or_update_parameter_value(sopt_db,"node","storage_longterm_active","flex_industry",(target_node,),True)
+                        for tb in list_otb:
+                            try:
+                                add_entity(sopt_db,"node__temporal_block",(target_node,tb))
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_industry", True)
+                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
+                            except:
+                                pass
+                            add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_industry",(target_node,tb),True)
+                    parameter_value = peak_demand*flex_industry*comfort_industry
+                    add_parameter_value(sopt_db,"node","storage_sate_max","flex_industry",(target_node,),parameter_value)
+            try:
+                sopt_db.commit_session("Added demand_flexibility")
+            except:
+                print("############################## error demand_flexibility parameters")
+
+def limit_commodity(config):
+
+    if config["set_limited_commodity"]:
+        with DatabaseMapping(url_spineopt) as sopt_db:
+            for commodity in config["limited_commodity"]:
+                indexes = [str(i)+"-01-01T00:00:00" for i in list(config["limited_commodity"][commodity].keys())]
+                values = list(config["limited_commodity"][commodity].values())
+                indexes.append("2060-01-01T00:00:00")
+                values.append(values[-1])
+                parameter_value = {"type":"time_series","data":dict(zip(indexes,values))}
+                try:
+                    add_alternative(sopt_db,"limited_"+commodity)
+                except:
+                    pass
+                add_parameter_value(sopt_db,"node","storage_state_max","limited_"+commodity,(commodity,),parameter_value)
+                add_parameter_value(sopt_db,"node","balance_type","limited_"+commodity,(commodity,),"node_balance")
+                add_parameter_value(sopt_db,"node","storage_active","limited_"+commodity,(commodity,),True)
+                add_parameter_value(sopt_db,"node","storage_longterm_active","limited_"+commodity,(commodity,),True)
+            try:
+                sopt_db.commit_session("Added limited commodity")
+            except:
+                print("############################## error limited commodity parameters")
 
 def main():
 
@@ -466,6 +629,15 @@ def main():
     print("Heat pump constraints")
     air_ground_heatpump(config)
 
+    print("Limitations on technology buildout")
+    limit_buildout(config)
+
+    print("Demand flexibility")
+    demand_flex(config)
+    
+    print("Limitations on commodity usage")
+    limit_commodity(config)
+
     print("managing outputs")
     manage_output()
 
@@ -479,7 +651,7 @@ def main():
     storage_setup(config)
 
     print("updating_parameters")
-    # update_parameters(config)
+    update_parameters(config)
 
     print("fixing invested variables")
     fix_no_investable_by_2030(config)

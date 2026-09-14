@@ -289,7 +289,7 @@ def from_DB_to_df(map_years):
                     unit_to_node_map[node_name] = "residual-"+node_name.split("_")[0]
                     energy_map_list[alte_name].append([node_name.split("_")[0],node_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
 
-    unit_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="unit_capacity")}
+    unit_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="capacity_per_unit")}
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "units_invested_available"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
@@ -353,7 +353,7 @@ def from_DB_to_df(map_years):
                     data = pd.DataFrame(map_table, columns=index_names + [link_name]).set_index(index_names[0])               
                     connections_dec_list[alte_name].append([p1, p2, commodity] + (data[link_name]).to_list())
 
-    sto_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="node_state_cap")}
+    sto_capacity_map = {p["entity_byname"][1]: p["parsed_value"].values[0] for p in result_db.get_parameter_value_items(parameter_definition_name="storage_state_max")}
     for param_map in result_db.get_parameter_value_items(parameter_definition_name = "storages_invested_available"):
         scenario_name, timestamp = param_map["alternative_name"].split("@")
         timestamp = pd.Timestamp(timestamp)
@@ -459,9 +459,9 @@ def get_representative_periods():
         all_rps_years = {alternative:pd.DataFrame(weights[alternative],index=indexes[alternative],columns=["weight"]).sort_index() for alternative in indexes}
         concat_alter = {}
         for alternative in all_rps_years:
-            if alternative.split("_")[1] not in concat_alter:
-                concat_alter[alternative.split("_")[1]] = []
-            concat_alter[alternative.split("_")[1]].append(alternative)
+            if alternative not in concat_alter:
+                concat_alter[alternative] = []
+            concat_alter[alternative].append(alternative)
         
         all_rps={alternative:pd.concat([all_rps_years[alt_i] for alt_i in concat_alter[alternative]],ignore_index=False) for alternative in concat_alter}
     else:

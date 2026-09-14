@@ -1,5 +1,5 @@
 scenarios:
-  baseline_blended_representative_periods: ["Base","wy2009","y2030_wy2009","y2040_wy2009","y2050_wy2009","medium_bio","current","GA","GA_flex0"]#,"y2030_wy2009","y2040_wy2009","y2050_wy2009"
+  baseline_blended_representative_periods: ["Base","wy2009","medium_bio","current","GA","GA_flex0"]#,"y2030_wy2009","y2040_wy2009","y2050_wy2009"
 emission_factor: 1.0 #percentage of carbon budget considered in the model based on the included countries
 resolution: "1h"
 future_inflation: 0.03
@@ -30,6 +30,28 @@ no_investable_2030:
     - elec
   node:
     - salt-cavern
+
+set_industry_buildings_flex: True
+industry_buildings_flex:
+  comfort_buildings: 4.0
+  comfort_industry: 2.0
+  flex_buildings: 0.1
+  flex_industry: 0.1
+
+set_technology_buildout: True
+technologies_buildout:
+  nuclear-3: 
+    2030: 120.0
+    2040: 150.0
+    2050: 180.0 # GW
+
+set_limited_commodity: True
+limited_commodity:
+  fossil-CH4:
+    2030: 2500.0
+    2040: 1000.0
+    2050: 500.0 # TWh
+
 include_ramping: False
 ramping:
   nuclear-3: 
