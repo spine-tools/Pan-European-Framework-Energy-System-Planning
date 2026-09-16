@@ -1,5 +1,5 @@
 scenarios:
-  baseline_blended_representative_periods: ["Base","wy2009","medium_bio","current","GA","GA_flex0"]#,"y2030_wy2009","y2040_wy2009","y2050_wy2009"
+  baseline_blended_representative_periods: ["Base","wy2009","medium_bio","current","GA","GA_flex5","high_CO2",flex_buildings,flex_buildings_wy2009_current,flex_industry] 
 emission_factor: 1.0 #percentage of carbon budget considered in the model based on the included countries
 resolution: "1h"
 future_inflation: 0.03
@@ -39,7 +39,7 @@ industry_buildings_flex:
   flex_industry: 0.1
 
 set_technology_buildout: True
-technologies_buildout:
+technology_buildout:
   nuclear-3: 
     2030: 120.0
     2040: 150.0
@@ -48,9 +48,9 @@ technologies_buildout:
 set_limited_commodity: True
 limited_commodity:
   fossil-CH4:
-    2030: 2500.0
-    2040: 1000.0
-    2050: 500.0 # TWh
+    2030: 2500000.0
+    2040: 1000000.0
+    2050: 500000.0 # GWh
 
 include_ramping: False
 ramping:

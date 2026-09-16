@@ -97,12 +97,13 @@ def storage_setup(config):
     with DatabaseMapping(url_spineopt) as sopt_db:
         list_rep = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "representative_period" in entity_i["name"]]
         list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]                    
-    
+
+        cyclic_conditions = sopt_db.get_parameter_value_items(entity_class_name = "node__temporal_block", alternative_name = "Base", parameter_definition_name = "cyclic_condition")
         for param_map in sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "storage_active"):
             if bool(param_map["parsed_value"]):
                 if all(sto+"_" not in param_map["entity_byname"][0] for sto in config["short-term-storage"]):
                     add_or_update_parameter_value(sopt_db,"node","storage_longterm_active","Base",(param_map["entity_byname"][0],),True)
-                    cyclic_condition_status = [entity_i for entity_i in sopt_db.get_parameter_value_items(entity_class_name = "node__temporal_block", alternative_name = "Base", parameter_definition_name = "cyclic_condition") if param_map["entity_byname"][0] == entity_i["entity_byname"][0]]
+                    cyclic_condition_status = [entity_i for entity_i in cyclic_conditions if param_map["entity_byname"][0] == entity_i["entity_byname"][0]]
                     if cyclic_condition_status and sopt_db.get_entity_item(entity_class_name = "temporal_block",name = "all_rps"):
                         try:
                             add_entity(sopt_db,"node__temporal_block",(param_map["entity_byname"][0],"all_rps"))
@@ -507,6 +508,7 @@ def limit_buildout(config):
                 print("############################## error technology buildout parameters")
 
 def demand_flex(config):
+
     if config["set_industry_buildings_flex"]:
         industry = ["cement","chemical-chlorine","chemical-olefins","chemical-PE","chemical-PEA","fertiliser-ammonia-NH3","glass-container","glass-fibre","glass-float","steel-primary","steel-seconday","alumina","aluminium-primary","aluminium-secondary","electric-arc-steel","food-beverages-tobacco","leather-and-textile","machinery-equipment","other-non-ferrous-metals","paper","pharmaceuticals","printing-and-media","pulp","pulp","transport-equipment","wood-and-wood-products"]
         heat = ["nonres-cool","nonres-DHW","nonres-space","res-cool","res-DHW","res-space"]
@@ -518,21 +520,25 @@ def demand_flex(config):
         with DatabaseMapping(url_spineopt) as sopt_db:
             list_rep = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "representative_period" in entity_i["name"]]
             list_otb = [entity_i["name"] for entity_i in sopt_db.get_entity_items(entity_class_name = "temporal_block") if "operations" in entity_i["name"]]                    
-            demands = sopt_db.get_parameter_vale_items(entity_class_name = "node", parameter_definition_name = "demand"):
+            demands = sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "demand")
             for demand in demands:
                 node = demand["entity_name"]
                 if any(i in node for i in heat):
                     peak_demand = demand["parsed_value"].values.max()
-                    target_node = [j for j in heat if j in demand["entity_name"]][0]+"_"+demand["entity_name"].split("_")[1]
+                    target_node = [j for j in heat if j in node][0]+"_"+node.split("_")[1].split("-")[0]
                     try:
                         add_alternative(sopt_db,"flex_buildings")
                     except:
                         pass
-                    add_parameter_value(sopt_db,"node","storage_active","flex_buildings",(target_node,),True)
+                    try:
+                        add_parameter_value(sopt_db,"node","storage_active","flex_buildings",(target_node,),True)
+                    except:
+                        pass
                     if list_rep:
                         for rep in list_rep:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,rep))
+                                add_entity_alternative(sopt_db,"node__temporal_block",(target_node,rep),"flex_buildings")
                                 add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_buildings", True)
                                 add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
                             except:
@@ -548,28 +554,32 @@ def demand_flex(config):
                             except:
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_buildings",(target_node,tb),True)
-                    for frac_demand in sopt_db.get_parameter_vale_items(entity_class_name = "node", parameter_definition_name = "demand_fraction", entity_byname = (target_node,)):
+                    for frac_demand in sopt_db.get_parameter_value_items(entity_class_name = "node", parameter_definition_name = "demand_fraction", entity_byname = (target_node,)):
                         values = [i*peak_demand*flex_buildings*comfort_buildings  for i in frac_demand["parsed_value"].values]
-                        indexes = [pd.Timestamp(i.value).indexes for i in frac_demand["parsed_value"].indexes]
+                        indexes = [pd.Timestamp(i).isoformat() for i in frac_demand["parsed_value"].indexes]
                         parameter_value = {"type":"time_series","data":dict(zip(indexes,values))}
                         try:
-                            add_alternative(sopt_db,"flex_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"])
+                            add_alternative(sopt_db,"flex_buildings_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"])
                         except:
                             pass
-                        add_parameter_value(sopt_db,"node","storage_sate_max","flex_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"],(target_node,),parameter_value)
+                        add_parameter_value(sopt_db,"node","storage_state_max","flex_buildings_"+demand["alternative_name"]+"_"+frac_demand["alternative_name"],(target_node,),parameter_value)
 
                 if any(i in node for i in industry):
                     peak_demand = demand["parsed_value"]
-                    target_node = [j for j in heat if j in demand["entity_name"]][0]+"_"+demand["entity_name"].split("_")[1]
+                    target_node = [j for j in industry if j+"_" in node][0]+"_"+node.split("_")[1]
                     try:
                         add_alternative(sopt_db,"flex_industry")
                     except:
                         pass
-                    add_parameter_value(sopt_db,"node","storage_active","flex_industry",(target_node,),True)
+                    try:
+                        add_parameter_value(sopt_db,"node","storage_active","flex_industry",(target_node,),True)
+                    except:
+                        pass
                     if list_rep:
                         for rep in list_rep:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,rep))
+                                add_entity_alternative(sopt_db,"node__temporal_block",(target_node,rep),"flex_industry")
                                 add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_industry", True)
                                 add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
                             except:
@@ -586,7 +596,7 @@ def demand_flex(config):
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_industry",(target_node,tb),True)
                     parameter_value = peak_demand*flex_industry*comfort_industry
-                    add_parameter_value(sopt_db,"node","storage_sate_max","flex_industry",(target_node,),parameter_value)
+                    add_parameter_value(sopt_db,"node","storage_state_max","flex_industry",(target_node,),parameter_value)
             try:
                 sopt_db.commit_session("Added demand_flexibility")
             except:
@@ -632,11 +642,14 @@ def main():
     print("Limitations on technology buildout")
     limit_buildout(config)
 
-    print("Demand flexibility")
-    demand_flex(config)
+    print("storage_setup")
+    storage_setup(config)
     
     print("Limitations on commodity usage")
     limit_commodity(config)
+
+    print("Demand flexibility")
+    demand_flex(config)
 
     print("managing outputs")
     manage_output()
@@ -646,9 +659,6 @@ def main():
 
     print("adding scenarios to be analyzed")
     scenario_development(config)
-
-    print("storage_setup")
-    storage_setup(config)
 
     print("updating_parameters")
     update_parameters(config)
