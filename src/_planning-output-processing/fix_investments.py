@@ -289,7 +289,7 @@ def scenario_definition(model_stage):
 
 def add_slack_var_demand():
     with DatabaseMapping(url_spineopt) as spineopt_db:
-        for parameter_name in ["demand","fractional_demand"]:
+        for parameter_name in ["demand","demand_fraction"]:
             for parameter_map in spineopt_db.get_parameter_value_items(parameter_definition_name = parameter_name):
                 entity_name = parameter_map["entity_name"]
                 if parameter_map["type"] == "time_series":

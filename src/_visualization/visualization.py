@@ -58,8 +58,12 @@ with open("config/storage_node_mapping.yml","r") as file:
 def extract_polygon(unit_name: str):
     if not isinstance(unit_name, str):
         return None
-    part = unit_name.rsplit('_', 1)[-1][-2:]
-    return (part if part!="on" else "Europe") or None
+    if "CO2-injection" not in unit_name:
+        part = unit_name.rsplit('_', 1)[-1][-2:]
+    else:
+        poly = unit_name.rsplit('-', 1)[-1]
+        part = poly[2:4] if len(poly) > 2 else poly
+    return part or None
 
 def apply_unit_name(unit_name: str):
     new_name = None
@@ -153,7 +157,7 @@ def from_DB_to_df(map_years):
                             if any(i in unit_name for i in storage_bi_node_map):
                                 unit_to_node_map[unit_name] = [storage_bi_node_map[i] for i in storage_bi_node_map if i in unit_name][0]
                             else:
-                                unit_to_node_map[unit_name] = node_name.split("_")[0] 
+                                unit_to_node_map[unit_name] = node_name.split("_")[0] if "CO2-storage" not in node_name else "CO2-storage"
                         if "wind" in unit_name:
                             energy_map_list[alte_name].append(["wind",unit_name] + [yearly_sums.get(year_i, 0) for year_i in map_years])
                         elif "solar" in unit_name:

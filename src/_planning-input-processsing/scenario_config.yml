@@ -1,5 +1,5 @@
 scenarios:
-  baseline_blended_representative_periods: ["Base","wy2009","medium_bio","current","GA","GA_flex5","high_CO2",flex_buildings,flex_buildings_wy2009_current,flex_industry] 
+  baseline_blended_representative_periods: ["Base","wy2009","medium_bio","current","GA","GA_flex0","high_CO2"] 
 emission_factor: 1.0 #percentage of carbon budget considered in the model based on the included countries
 resolution: "1h"
 future_inflation: 0.03

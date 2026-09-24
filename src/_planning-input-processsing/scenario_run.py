@@ -71,7 +71,7 @@ def add_scenario_alternative(db_map : DatabaseMapping,name_scenario : str, name_
         raise RuntimeError(error)
 
 def add_entity_alternative(db_map : DatabaseMapping,entity_class_name : str, entity_byname : tuple, alternative_name = str, active = bool) -> None:
-    _, error = db_map.add_entity_alternative_item(entity_class_namee = entity_class_name, entity_byname = entity_byname, alternative_name = alternative_name, active = active)
+    _, error = db_map.add_entity_alternative_item(entity_class_name = entity_class_name, entity_byname = entity_byname, alternative_name = alternative_name, active = active)
     if error is not None:
         raise RuntimeError(error)
     
@@ -538,9 +538,8 @@ def demand_flex(config):
                         for rep in list_rep:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,rep))
-                                add_entity_alternative(sopt_db,"node__temporal_block",(target_node,rep),"flex_buildings")
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_buildings", True)
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_buildings", True)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
                             except:
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_buildings",(target_node,rep),True)
@@ -549,8 +548,8 @@ def demand_flex(config):
                         for tb in list_otb:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,tb))
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_buildings", True)
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_buildings", True)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
                             except:
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_buildings",(target_node,tb),True)
@@ -579,9 +578,8 @@ def demand_flex(config):
                         for rep in list_rep:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,rep))
-                                add_entity_alternative(sopt_db,"node__temporal_block",(target_node,rep),"flex_industry")
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_industry", True)
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "flex_industry", True)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,rep), "Base", False)
                             except:
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_industry",(target_node,rep),True)
@@ -590,8 +588,8 @@ def demand_flex(config):
                         for tb in list_otb:
                             try:
                                 add_entity(sopt_db,"node__temporal_block",(target_node,tb))
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_industry", True)
-                                add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "flex_industry", True)
+                                #add_entity_alternative(sopt_db,"node__temporal_block", (target_node,tb), "Base", False)
                             except:
                                 pass
                             add_or_update_parameter_value(sopt_db,"node__temporal_block","cyclic_condition","flex_industry",(target_node,tb),True)
